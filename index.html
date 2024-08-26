@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Agent Chat</title>
+</head>
+<body>
+    <!-- Online Chat Button -->
+    <a id="liveagent_button_online_573WJ0000002Gv7" href="javascript://Chat" style="display: none;" onclick="liveagent.startChat('573WJ0000002Gv7')">
+        <!-- Online Chat Content -->
+        Chat with Us!
+    </a>
+
+    <!-- Offline Chat Message -->
+    <div id="liveagent_button_offline_573WJ0000002Gv7" style="display: none;">
+        <!-- Offline Chat Content -->
+        Our agents are currently offline. Please leave a message.
+    </div>
+
+    <!-- Salesforce Live Agent Script -->
+    <script type="text/javascript">
+        if (!window._laq) { window._laq = []; }
+        window._laq.push(function(){
+            liveagent.showWhenOnline('573WJ0000002Gv7', document.getElementById('liveagent_button_online_573WJ0000002Gv7'));
+            liveagent.showWhenOffline('573WJ0000002Gv7', document.getElementById('liveagent_button_offline_573WJ0000002Gv7'));
+        });
+    </script>
+</body>
+</html>
