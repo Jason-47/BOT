@@ -113,11 +113,12 @@ return Array.from(array).map(byte => ('0' + byte.toString(16)).slice(-2)).join('
         const settingIsTrue = settingValue.trim().toLowerCase() === 'true';
         
         if (settingIsTrue) {
-            document.getElementById('legacyChatButton').style.display = 'block';
-            document.getElementById('miawButton').style.display = 'none';
-        } else {
             document.getElementById('legacyChatButton').style.display = 'none';
             document.getElementById('miawButton').style.display = 'block';
+        } else {
+           
+             document.getElementById('legacyChatButton').style.display = 'block';
+            document.getElementById('miawButton').style.display = 'none';
         }
     }
 
