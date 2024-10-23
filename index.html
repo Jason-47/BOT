@@ -104,6 +104,11 @@
             }
         }
 
+        // Automatically initiate the login process when the page loads
+        window.onload = function() {
+            loginWithSalesforce();
+        };
+
         // Check if we are on the callback URL
         if (window.location.pathname === '/callback') {
             handleCallback();
@@ -117,7 +122,6 @@
 </head>
 <body>
     <h2>Custom Setting Value</h2>
-    <button onclick="loginWithSalesforce()">Login with Salesforce</button>
     
     <!-- Conditionally displayed buttons -->
     <button id="legacyChatButton">Legacy Chat</button>
