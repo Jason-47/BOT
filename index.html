@@ -5,22 +5,20 @@
 <script>
     // Your Salesforce org's details
     const CLIENT_ID = '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ';
+    const CLIENT_SECRET = 'C96A75326B8959F050424B364AE27BEF5AAC11EAC238B11D1613F069A8FDD05F'; // Secret might not be required for PKCE flow
     const REDIRECT_URI = 'https://tricore--dev.sandbox.lightning.force.com/callback'; 
     const AUTH_URL = 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/authorize'; 
     const TOKEN_URL = 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token'; 
-    // Updated API URL to include instance URL and API version
-    const INSTANCE_URL = 'https://tricore--dev.sandbox.my.salesforce.com';
-    const API_VERSION = 'v58.0';
-    const API_URL = `${INSTANCE_URL}/services/apexrest/settings/${API_VERSION}`; 
+    const API_URL = '/services/apexrest/settings'; 
 
-    // Function to generate a random code verifier
-    function generateCodeVerifier() {
-        const array = new Uint8Array(32);
-        window.crypto.getRandomValues(array);
-        return Array.from(array).map(byte => ('0' + byte.toString(16)).slice(-2)).join('');
-    }
+    // Function to generate a random code verifier (a string)
+function generateCodeVerifier() {
+const array = new Uint8Array(32); // Uint8Array for byte values
+window.crypto.getRandomValues(array); // Generate 32 random bytes
+return Array.from(array).map(byte => ('0' + byte.toString(16)).slice(-2)).join(''); // Convert to hex string
+}
 
-    // Function to generate a code challenge
+    // Function to generate a code challenge (SHA-256 hash of the code verifier)
     async function generateCodeChallenge(verifier) {
         const encoder = new TextEncoder();
         const data = encoder.encode(verifier);
@@ -32,42 +30,40 @@
         return base64Digest;
     }
 
-    // Function to initiate the OAuth login process
+    // Function to initiate the OAuth login process using PKCE
     async function loginWithSalesforce() {
-        try {
-            const codeVerifier = generateCodeVerifier();
-            const codeChallenge = await generateCodeChallenge(codeVerifier);
+        // Generate code verifier and code challenge
+        const codeVerifier = generateCodeVerifier();
+        const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-            sessionStorage.setItem('code_verifier', codeVerifier);
+        // Store the codeVerifier in session storage for later use
+        sessionStorage.setItem('code_verifier', codeVerifier);
 
-            const authWindow = window.open(
-                `${AUTH_URL}?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&code_challenge=${codeChallenge}&code_challenge_method=S256`,
-                'authWindow',
-                'width=800,height=600'
-            );
+        const authWindow = window.open(
+            `${AUTH_URL}?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&code_challenge=${codeChallenge}&code_challenge_method=S256`,
+            'authWindow',
+            'width=800,height=600'
+        );
 
-            window.addEventListener('message', async function(event) {
-                if (event.origin === window.location.origin) {
-                    const authorizationCode = event.data;
-                    if (authorizationCode) {
-                        const tokenResponse = await getAccessToken(authorizationCode);
-                        if (tokenResponse && tokenResponse.access_token) {
-                            // Store the instance URL from the token response
-                            sessionStorage.setItem('instance_url', tokenResponse.instance_url);
-                            getCustomSetting(tokenResponse.access_token);
-                        }
+        // Listener for the authorization code
+        window.addEventListener('message', async function(event) {
+            if (event.origin === window.location.origin) {
+                const authorizationCode = event.data;
+                if (authorizationCode) {
+                    // Exchange the authorization code for an access token
+                    const accessToken = await getAccessToken(authorizationCode);
+                    if (accessToken) {
+                        // Use the access token to call the Salesforce API
+                        getCustomSetting(accessToken);
                     }
                 }
-            });
-        } catch (error) {
-            console.error('Login error:', error);
-            alert('Error during login process');
-        }
+            }
+        });
     }
 
-    // Updated function to exchange authorization code for an access token
+    // Function to exchange authorization code for an access token
     async function getAccessToken(code) {
-        const codeVerifier = sessionStorage.getItem('code_verifier');
+        const codeVerifier = sessionStorage.getItem('code_verifier'); // Retrieve the stored code_verifier
 
         try {
             const response = await fetch(TOKEN_URL, {
@@ -78,49 +74,55 @@
                 body: `grant_type=authorization_code&code=${code}&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&code_verifier=${codeVerifier}`
             });
 
-            if (!response.ok) {
-                throw new Error(`Token request failed: ${response.status}`);
+            if (response.ok) {
+                const data = await response.json();
+                return data.access_token;
+            } else {
+                alert('Failed to get access token');
+                return null;
             }
-
-            return await response.json();
         } catch (error) {
             console.error('Error getting access token:', error);
-            alert('Failed to get access token: ' + error.message);
             return null;
         }
     }
 
-    // Updated function to call Salesforce API
+    // Function to call Salesforce API and fetch the custom setting value
     async function getCustomSetting(accessToken) {
         try {
-            const instanceUrl = sessionStorage.getItem('instance_url') || INSTANCE_URL;
-            const response = await fetch(`${instanceUrl}${API_URL}`, {
+            const response = await fetch(API_URL, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Accept': 'application/json'
+                    'Authorization': `Bearer ${accessToken}`
                 }
             });
 
-            if (!response.ok) {
-                throw new Error(`API request failed: ${response.status}`);
+            if (response.ok) {
+                const settingValue = await response.text();
+                showButtons(settingValue);
+            } else {
+                alert('Failed to fetch setting: ' + response.status);
             }
-
-            const settingValue = await response.text();
-            showButtons(settingValue);
         } catch (error) {
             console.error('Error fetching custom setting:', error);
-            alert('Failed to fetch setting: ' + error.message);
         }
     }
 
+    // Function to show buttons based on the custom setting value
     function showButtons(settingValue) {
         const settingIsTrue = settingValue.trim().toLowerCase() === 'true';
         
-        document.getElementById('legacyChatButton').style.display = settingIsTrue ? 'none' : 'block';
-        document.getElementById('miawButton').style.display = settingIsTrue ? 'block' : 'none';
+        if (settingIsTrue) {
+            document.getElementById('legacyChatButton').style.display = 'none';
+            document.getElementById('miawButton').style.display = 'block';
+        } else {
+           
+             document.getElementById('legacyChatButton').style.display = 'block';
+            document.getElementById('miawButton').style.display = 'none';
+        }
     }
 
+    // Callback function to extract authorization code from URL
     function handleCallback() {
         const urlParams = new URLSearchParams(window.location.search);
         const authorizationCode = urlParams.get('code');
@@ -130,23 +132,26 @@
         }
     }
 
-    // Initialize based on current page
+    // Automatically initiate the login process when the page loads
     window.onload = function() {
-        if (window.location.pathname === '/callback') {
-            handleCallback();
-        } else {
-            loginWithSalesforce();
-        }
+        loginWithSalesforce();
     };
+
+    // Check if we are on the callback URL
+    if (window.location.pathname === '/callback') {
+        handleCallback();
+    }
 </script>
 <style>
     #legacyChatButton, #miawButton {
-        display: none;
+        display: none; /* Initially hide the buttons */
     }
 </style>
 </head>
 <body>
 <h2>Custom Setting Value</h2>
+
+<!-- Conditionally displayed buttons -->
 <button id="legacyChatButton">Legacy Chat</button>
 <button id="miawButton">MIAW</button>
 </body>
