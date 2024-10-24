@@ -1,31 +1,119 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Salesforce Redirect</title>
+    <title>Salesforce Integration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f4f6f9;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        #status {
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f8f9fa;
+            color: #333;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #0070d2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            text-decoration: none;
+            margin: 10px;
+        }
+        .btn:hover {
+            background: #005fb2;
+        }
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background: #f8d7da;
+        }
+        .success {
+            color: #28a745;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background: #d4edda;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Salesforce Access</h2>
+        <div id="status">Initializing...</div>
+        <button id="loginButton" class="btn" onclick="handleAuth()">Login to Salesforce</button>
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="success" class="success" style="display: none;"></div>
+    </div>
+
     <script>
         // Configuration
         const CONFIG = {
-            // Salesforce URLs and credentials
-            instanceUrl: 'https://tricore--dev.sandbox.my.salesforce.com',
-            tokenUrl: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token',
             clientId: '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ',
             clientSecret: 'C96A75326B8959F050424B364AE27BEF5AAC11EAC238B11D1613F069A8FDD05F',
             username: 'mailto:ssnappism2@ismsystems.com.dev',
-            password: '!Smdemo12345678bjDmgfGAnz4EKCbg9jPCK41t7'
+            password: '!Smdemo12345678bjDmgfGAnz4EKCbg9jPCK41t7',
+            instanceUrl: 'https://tricore--dev.sandbox.my.salesforce.com',
+            tokenUrl: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token',
+            redirectUri: window.location.origin + window.location.pathname
         };
 
-        // Access token get karne ka function
-        async function getAccessToken() {
-            try {
-                const params = new URLSearchParams({
-                    grant_type: 'password',
-                    client_id: CONFIG.clientId,
-                    client_secret: CONFIG.clientSecret,
-                    username: CONFIG.username,
-                    password: CONFIG.password
-                });
+        // Elements
+        const statusEl = document.getElementById('status');
+        const errorEl = document.getElementById('error');
+        const successEl = document.getElementById('success');
+        const loginButtonEl = document.getElementById('loginButton');
 
-                const response = await fetch(CONFIG.tokenUrl, {
+        // Helper functions
+        function showError(message) {
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            successEl.style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            successEl.textContent = message;
+            successEl.style.display = 'block';
+            errorEl.style.display = 'none';
+        }
+
+        function updateStatus(message) {
+            statusEl.textContent = message;
+        }
+
+        // Get token using password flow
+        async function getToken() {
+            updateStatus('Getting access token...');
+            
+            const params = new URLSearchParams();
+            params.append('grant_type', 'password');
+            params.append('client_id', CONFIG.clientId);
+            params.append('client_secret', CONFIG.clientSecret);
+            params.append('username', CONFIG.username);
+            params.append('password', CONFIG.password);
+
+            try {
+                const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+                const response = await fetch(proxyUrl + CONFIG.tokenUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'
@@ -34,91 +122,56 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Token fetch failed: ' + response.status);
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
 
                 const data = await response.json();
-                return {
-                    accessToken: data.access_token,
-                    instanceUrl: data.instance_url
-                };
+                return data.access_token;
             } catch (error) {
                 console.error('Token Error:', error);
-                document.getElementById('status').textContent = 'Token Error: ' + error.message;
+                showError('Failed to get access token: ' + error.message);
                 throw error;
             }
         }
 
-        // Salesforce mein redirect karne ka function
-        async function redirectToSalesforce(event) {
-            event.preventDefault();
-            document.getElementById('status').textContent = 'Authenticating...';
-            
+        // Main authentication handler
+        async function handleAuth() {
             try {
-                // Pehle access token get karo
-                const authData = await getAccessToken();
+                updateStatus('Starting authentication...');
+                loginButtonEl.disabled = true;
+
+                // Get access token
+                const accessToken = await getToken();
                 
-                // Access token ko localStorage mein save karo
-                localStorage.setItem('sf_access_token', authData.accessToken);
-                
-                // Frontdoor URL create karo (ye special URL hai jo direct org mein le jayega)
-                const frontdoorUrl = `${CONFIG.instanceUrl}/secur/frontdoor.jsp?sid=${authData.accessToken}`;
-                
-                // Redirect karo
-                window.location.href = frontdoorUrl;
+                if (accessToken) {
+                    showSuccess('Authentication successful! Redirecting...');
+                    
+                    // Store token in sessionStorage
+                    sessionStorage.setItem('sf_access_token', accessToken);
+                    
+                    // Redirect to Salesforce using frontdoor.jsp
+                    const frontdoorUrl = `${CONFIG.instanceUrl}/secur/frontdoor.jsp?sid=${accessToken}`;
+                    setTimeout(() => {
+                        window.location.href = frontdoorUrl;
+                    }, 1000);
+                }
             } catch (error) {
-                document.getElementById('status').textContent = 'Redirect Error: ' + error.message;
-                console.error('Redirect Error:', error);
+                console.error('Auth Error:', error);
+                showError('Authentication failed: ' + error.message);
+                loginButtonEl.disabled = false;
             }
         }
 
-        // Initial load pe check karo ki already logged in hai ya nahi
+        // Check for existing session on load
         window.onload = function() {
-            const token = localStorage.getItem('sf_access_token');
-            if (token) {
-                document.getElementById('status').textContent = 'Already authenticated';
+            const existingToken = sessionStorage.getItem('sf_access_token');
+            if (existingToken) {
+                updateStatus('Existing session found');
+                showSuccess('You are already authenticated');
             } else {
-                document.getElementById('status').textContent = 'Ready to authenticate';
+                updateStatus('Ready to authenticate');
             }
         };
     </script>
-    <style>
-        .container {
-            max-width: 600px;
-            margin: 20px auto;
-            padding: 20px;
-            font-family: Arial, sans-serif;
-            text-align: center;
-        }
-        #status {
-            margin: 15px 0;
-            padding: 10px;
-            background: #f5f5f5;
-            border-radius: 4px;
-        }
-        .visit-button {
-            display: inline-block;
-            padding: 12px 24px;
-            background: #0070d2;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-            cursor: pointer;
-            border: none;
-            font-size: 16px;
-        }
-        .visit-button:hover {
-            background: #005fb2;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h2>Salesforce Organization Access</h2>
-        <div id="status">Ready to authenticate...</div>
-        <button onclick="redirectToSalesforce(event)" class="visit-button">
-            Visit Salesforce Org
-        </button>
-    </div>
 </body>
 </html>
