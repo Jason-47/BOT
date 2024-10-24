@@ -19,7 +19,7 @@
             }
         };
 
-     
+        // Naya Access Token lene ka function
         async function refreshAccessToken() {
             try {
                 updateStatus('Getting new access token...');
@@ -40,9 +40,10 @@
                 const data = await response.json();
                 currentAccessToken = data.access_token;
                 
-             
+                // Token ko display karo
                 document.getElementById('tokenDisplay').value = currentAccessToken;
                 updateStatus('New access token received!');
+				alert('updateStatus:  '+ updateStatus);
                 
                 return currentAccessToken;
 
@@ -53,7 +54,7 @@
             }
         }
 
-     
+        // Custom Setting ki value get karne ka function
         async function getCustomSetting() {
             try {
                 // Pehle naya token lo
@@ -84,7 +85,7 @@
             }
         }
 
-      
+        // Buttons show/hide karne ka function
         function showButtons(settingValue) {
             try {
                 const settingIsTrue = settingValue.trim().toLowerCase() === 'true';
@@ -103,7 +104,7 @@
             }
         }
 
-      
+        // Manual refresh ke liye function
         async function manualRefresh() {
             try {
                 await initialize();
@@ -131,7 +132,7 @@
             }
         }
 
-       
+        // Page load hone pe initialize function ko call karo
         window.onload = initialize;
     </script>
     <style>
