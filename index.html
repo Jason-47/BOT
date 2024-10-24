@@ -1,158 +1,158 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Salesforce Integration</title>
-    <script>
-        // Configuration - saare important URLs aur credentials
-        const CONFIG = {
-            // Salesforce URLs
-            tokenUrl: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token',
-            settingsUrl: 'https://tricore--dev.sandbox.my.salesforce.com/services/apexrest/settings',
-            
-            // OAuth credentials
-            clientId: '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ',
-            clientSecret: 'C96A75326B8959F050424B364AE27BEF5AAC11EAC238B11D1613F069A8FDD05F',
-            username: 'mailto:ssnappism2@ismsystems.com.dev',
-            password: '!Smdemo12345678bjDmgfGAnz4EKCbg9jPCK41t7'
-        };
+<title>Fetch Custom Settings and Show Buttons with PKCE</title>
+<script>
+    // Your Salesforce org's details
+    const CLIENT_ID = '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ';
+    const CLIENT_SECRET = 'C96A75326B8959F050424B364AE27BEF5AAC11EAC238B11D1613F069A8FDD05F'; // Secret might not be required for PKCE flow
+    const REDIRECT_URI = 'https://tricore--dev.sandbox.lightning.force.com/callback'; 
+    const AUTH_URL = 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/authorize'; 
+    const TOKEN_URL = 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token'; 
+    const API_URL = '/services/apexrest/settings'; 
 
-        // Access token lene ka function
-        async function getAccessToken() {
-            try {
-                const params = new URLSearchParams({
-                    grant_type: 'password',
-                    client_id: CONFIG.clientId,
-                    client_secret: CONFIG.clientSecret,
-                    username: CONFIG.username,
-                    password: CONFIG.password
-                });
+    // Function to generate a random code verifier (a string)
+function generateCodeVerifier() {
+const array = new Uint8Array(32); // Uint8Array for byte values
+window.crypto.getRandomValues(array); // Generate 32 random bytes
+return Array.from(array).map(byte => ('0' + byte.toString(16)).slice(-2)).join(''); // Convert to hex string
+}
 
-                const response = await fetch(CONFIG.tokenUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: params
-                });
+    // Function to generate a code challenge (SHA-256 hash of the code verifier)
+    async function generateCodeChallenge(verifier) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(verifier);
+        const digest = await window.crypto.subtle.digest('SHA-256', data);
+        const base64Digest = btoa(String.fromCharCode.apply(null, new Uint8Array(digest)))
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+        return base64Digest;
+    }
 
-                if (!response.ok) {
-                    throw new Error('Token fetch failed: ' + response.status);
+    // Function to initiate the OAuth login process using PKCE
+    async function loginWithSalesforce() {
+        // Generate code verifier and code challenge
+        const codeVerifier = generateCodeVerifier();
+        const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+        // Store the codeVerifier in session storage for later use
+        sessionStorage.setItem('code_verifier', codeVerifier);
+
+        const authWindow = window.open(
+            `${AUTH_URL}?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&code_challenge=${codeChallenge}&code_challenge_method=S256`,
+            'authWindow',
+            'width=800,height=600'
+        );
+
+        // Listener for the authorization code
+        window.addEventListener('message', async function(event) {
+            if (event.origin === window.location.origin) {
+                const authorizationCode = event.data;
+                if (authorizationCode) {
+                    // Exchange the authorization code for an access token
+                    const accessToken = await getAccessToken(authorizationCode);
+                    if (accessToken) {
+                        // Use the access token to call the Salesforce API
+                        getCustomSetting(accessToken);
+                    }
                 }
+            }
+        });
+    }
 
+    // Function to exchange authorization code for an access token
+    async function getAccessToken(code) {
+        const codeVerifier = sessionStorage.getItem('code_verifier'); // Retrieve the stored code_verifier
+
+        try {
+            const response = await fetch(TOKEN_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `grant_type=authorization_code&code=${code}&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&code_verifier=${codeVerifier}`
+            });
+
+            if (response.ok) {
                 const data = await response.json();
                 return data.access_token;
-            } catch (error) {
-                console.error('Token Error:', error);
-                document.getElementById('status').textContent = 'Token Error: ' + error.message;
-                throw error;
+            } else {
+                alert('Failed to get access token');
+                return null;
             }
+        } catch (error) {
+            console.error('Error getting access token:', error);
+            return null;
         }
+    }
 
-        // Custom setting fetch karne ka function
-        async function getCustomSetting(accessToken) {
-            try {
-                const response = await fetch(CONFIG.settingsUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error('Settings fetch failed: ' + response.status);
+    // Function to call Salesforce API and fetch the custom setting value
+    async function getCustomSetting(accessToken) {
+        try {
+            const response = await fetch(API_URL, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
                 }
+            });
 
+            if (response.ok) {
                 const settingValue = await response.text();
-                return settingValue;
-            } catch (error) {
-                console.error('Settings Error:', error);
-                document.getElementById('status').textContent = 'Settings Error: ' + error.message;
-                throw error;
-            }
-        }
-
-        // Buttons show/hide karne ka function
-        function showButtons(settingValue) {
-            const settingIsTrue = settingValue.trim().toLowerCase() === 'true';
-            document.getElementById('legacyChatButton').style.display = settingIsTrue ? 'none' : 'block';
-            document.getElementById('miawButton').style.display = settingIsTrue ? 'block' : 'none';
-            document.getElementById('status').textContent = 'Setting value: ' + settingValue;
-        }
-
-        // GitHub click pe Salesforce me redirect
-        function redirectToSalesforce(event) {
-            event.preventDefault();
-            // GitHub URL se Salesforce URL me redirect
-            window.location.href = 'https://tricore--dev.sandbox.lightning.force.com/';
-        }
-
-        // Page load pe ye function chalega
-        async function initialize() {
-            try {
-                document.getElementById('status').textContent = 'Getting access token...';
-                const accessToken = await getAccessToken();
-                
-                document.getElementById('status').textContent = 'Fetching setting...';
-                const settingValue = await getCustomSetting(accessToken);
-                
                 showButtons(settingValue);
-            } catch (error) {
-                console.error('Init Error:', error);
-                document.getElementById('status').textContent = 'Init Error: ' + error.message;
+            } else {
+                alert('Failed to fetch setting: ' + response.status);
             }
+        } catch (error) {
+            console.error('Error fetching custom setting:', error);
         }
+    }
 
-        // Page load pe initialize function ko call karo
-        window.onload = initialize;
-    </script>
-    <style>
-        .container {
-            max-width: 600px;
-            margin: 20px auto;
-            padding: 20px;
-            font-family: Arial, sans-serif;
+    // Function to show buttons based on the custom setting value
+    function showButtons(settingValue) {
+        const settingIsTrue = settingValue.trim().toLowerCase() === 'true';
+        
+        if (settingIsTrue) {
+            document.getElementById('legacyChatButton').style.display = 'none';
+            document.getElementById('miawButton').style.display = 'block';
+        } else {
+           
+             document.getElementById('legacyChatButton').style.display = 'block';
+            document.getElementById('miawButton').style.display = 'none';
         }
-        #status {
-            margin: 15px 0;
-            padding: 10px;
-            background: #f5f5f5;
-            border-radius: 4px;
+    }
+
+    // Callback function to extract authorization code from URL
+    function handleCallback() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const authorizationCode = urlParams.get('code');
+        if (authorizationCode) {
+            window.opener.postMessage(authorizationCode, window.location.origin);
+            window.close();
         }
-        button {
-            padding: 10px 20px;
-            margin: 5px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            background: #0070d2;
-            color: white;
-        }
-        button:hover {
-            background: #005fb2;
-        }
-        .github-link {
-            color: #0070d2;
-            text-decoration: none;
-        }
-        .github-link:hover {
-            text-decoration: underline;
-        }
-    </style>
+    }
+
+    // Automatically initiate the login process when the page loads
+    window.onload = function() {
+        loginWithSalesforce();
+    };
+
+    // Check if we are on the callback URL
+    if (window.location.pathname === '/callback') {
+        handleCallback();
+    }
+</script>
+<style>
+    #legacyChatButton, #miawButton {
+        display: none; / Initially hide the buttons /
+    }
+</style>
 </head>
 <body>
-    <div class="container">
-        <h2>Salesforce Integration</h2>
-        <div id="status">Initializing...</div>
-        <div id="buttons">
-            <button id="legacyChatButton" style="display: none;">Legacy Chat</button>
-            <button id="miawButton" style="display: none;">MIAW</button>
-        </div>
-        <p>
-            <a href="#" class="github-link" onclick="redirectToSalesforce(event)">
-                Visit GitHub Repository
-            </a>
-        </p>
-    </div>
+<h2>Custom Setting Value</h2>
+
+<!-- Conditionally displayed buttons -->
+<button id="legacyChatButton">Legacy Chat</button>
+<button id="miawButton">MIAW</button>
 </body>
 </html>
