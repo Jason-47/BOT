@@ -1,187 +1,142 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Salesforce Integration with Token Management</title>
+    <title>Salesforce Integration</title>
     <script>
-        // Global variable for storing current access token
-        let currentAccessToken = '';
-
-        // Salesforce Configuration
+        // Configuration - saare important URLs aur credentials
         const CONFIG = {
+            // Salesforce URLs
             tokenUrl: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token',
             settingsUrl: 'https://tricore--dev.sandbox.my.salesforce.com/services/apexrest/settings',
-            params: {
-                grant_type: 'password',
-                client_id: '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ',
-                client_secret: 'C96A75326B8959F050424B364AE27BEF5AAC11EAC238B11D1613F069A8FDD05F',
-                username: 'mailto:ssnappism2@ismsystems.com.dev',
-                password: '!Smdemo12345678bjDmgfGAnz4EKCbg9jPCK41t7'
-            }
+            
+            // OAuth credentials
+            clientId: '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ',
+            clientSecret: 'C96A75326B8959F050424B364AE27BEF5AAC11EAC238B11D1613F069A8FDD05F',
+            username: 'mailto:ssnappism2@ismsystems.com.dev',
+            password: '!Smdemo12345678bjDmgfGAnz4EKCbg9jPCK41t7'
         };
 
-        // Naya Access Token lene ka function
-        async function refreshAccessToken() {
+        // Access token lene ka function
+        async function getAccessToken() {
             try {
-                updateStatus('Getting new access token...');
-                
-                const params = new URLSearchParams(CONFIG.params);
+                const params = new URLSearchParams({
+                    grant_type: 'password',
+                    client_id: CONFIG.clientId,
+                    client_secret: CONFIG.clientSecret,
+                    username: CONFIG.username,
+                    password: CONFIG.password
+                });
+
                 const response = await fetch(CONFIG.tokenUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'
                     },
-                    body: params.toString()
+                    body: params
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Token Error: ${response.status}`);
+                    throw new Error('Token fetch failed: ' + response.status);
                 }
 
                 const data = await response.json();
-                currentAccessToken = data.access_token;
-                
-                // Token ko display karo
-                document.getElementById('tokenDisplay').value = currentAccessToken;
-                updateStatus('New access token received!');
-				alert('updateStatus:  '+ updateStatus);
-                
-                return currentAccessToken;
-
+                return data.access_token;
             } catch (error) {
-                updateStatus(`Token Error: ${error.message}`);
                 console.error('Token Error:', error);
+                document.getElementById('status').textContent = 'Token Error: ' + error.message;
                 throw error;
             }
         }
 
-        // Custom Setting ki value get karne ka function
-        async function getCustomSetting() {
+        // Custom setting fetch karne ka function
+        async function getCustomSetting(accessToken) {
             try {
-                // Pehle naya token lo
-                await refreshAccessToken();
-                
-                updateStatus('Fetching custom setting with new token...');
-
                 const response = await fetch(CONFIG.settingsUrl, {
                     method: 'GET',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${currentAccessToken}`
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
                     }
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Settings Error: ${response.status}`);
+                    throw new Error('Settings fetch failed: ' + response.status);
                 }
 
                 const settingValue = await response.text();
-                updateStatus('Custom setting fetched successfully!');
                 return settingValue;
-
             } catch (error) {
-                updateStatus(`Settings Error: ${error.message}`);
                 console.error('Settings Error:', error);
+                document.getElementById('status').textContent = 'Settings Error: ' + error.message;
                 throw error;
             }
         }
 
         // Buttons show/hide karne ka function
         function showButtons(settingValue) {
-            try {
-                const settingIsTrue = settingValue.trim().toLowerCase() === 'true';
-                
-                const legacyButton = document.getElementById('legacyChatButton');
-                const miawButton = document.getElementById('miawButton');
-
-                legacyButton.style.display = settingIsTrue ? 'none' : 'block';
-                miawButton.style.display = settingIsTrue ? 'block' : 'none';
-
-                updateStatus(`Current Setting: ${settingValue}`);
-
-            } catch (error) {
-                updateStatus(`Button Error: ${error.message}`);
-                console.error('Button Error:', error);
-            }
+            const settingIsTrue = settingValue.trim().toLowerCase() === 'true';
+            document.getElementById('legacyChatButton').style.display = settingIsTrue ? 'none' : 'block';
+            document.getElementById('miawButton').style.display = settingIsTrue ? 'block' : 'none';
+            document.getElementById('status').textContent = 'Setting value: ' + settingValue;
         }
 
-        // Manual refresh ke liye function
-        async function manualRefresh() {
-            try {
-                await initialize();
-                updateStatus('Manual refresh completed!');
-            } catch (error) {
-                updateStatus(`Refresh Error: ${error.message}`);
-            }
+        // GitHub click pe Salesforce me redirect
+        function redirectToSalesforce(event) {
+            event.preventDefault();
+            // GitHub URL se Salesforce URL me redirect
+            window.location.href = 'https://tricore--dev.sandbox.lightning.force.com/';
         }
 
-        // Status update karne ka function
-        function updateStatus(message) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.textContent = message;
-            console.log(message);
-        }
-
-        // Initial setup
+        // Page load pe ye function chalega
         async function initialize() {
             try {
-                const settingValue = await getCustomSetting(); // Ye automatically naya token lega
+                document.getElementById('status').textContent = 'Getting access token...';
+                const accessToken = await getAccessToken();
+                
+                document.getElementById('status').textContent = 'Fetching setting...';
+                const settingValue = await getCustomSetting(accessToken);
+                
                 showButtons(settingValue);
             } catch (error) {
-                updateStatus(`Initialization Error: ${error.message}`);
-                console.error('Initialization Error:', error);
+                console.error('Init Error:', error);
+                document.getElementById('status').textContent = 'Init Error: ' + error.message;
             }
         }
 
-        // Page load hone pe initialize function ko call karo
+        // Page load pe initialize function ko call karo
         window.onload = initialize;
     </script>
     <style>
         .container {
-            max-width: 800px;
+            max-width: 600px;
             margin: 20px auto;
             padding: 20px;
             font-family: Arial, sans-serif;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            border-radius: 8px;
         }
         #status {
             margin: 15px 0;
             padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-            border-left: 4px solid #0070d2;
-        }
-        .token-display {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            font-family: monospace;
-            border: 1px solid #ddd;
+            background: #f5f5f5;
             border-radius: 4px;
         }
         button {
-            padding: 12px 24px;
-            margin: 8px;
+            padding: 10px 20px;
+            margin: 5px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            background-color: #0070d2;
+            background: #0070d2;
             color: white;
-            font-size: 16px;
-            transition: background-color 0.3s;
         }
         button:hover {
-            background-color: #005fb2;
+            background: #005fb2;
         }
-        .refresh-btn {
-            background-color: #04844b;
-        }
-        .refresh-btn:hover {
-            background-color: #036c3c;
-        }
-        h2 {
+        .github-link {
             color: #0070d2;
-            margin-bottom: 20px;
+            text-decoration: none;
+        }
+        .github-link:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -189,21 +144,15 @@
     <div class="container">
         <h2>Salesforce Integration</h2>
         <div id="status">Initializing...</div>
-        
-        <!-- Token Display Area -->
-        <div>
-            <h3>Current Access Token:</h3>
-            <input type="text" id="tokenDisplay" class="token-display" readonly>
-        </div>
-
-        <!-- Manual Refresh Button -->
-        <button onclick="manualRefresh()" class="refresh-btn">Refresh Token & Settings</button>
-
-        <!-- Chat Buttons -->
         <div id="buttons">
             <button id="legacyChatButton" style="display: none;">Legacy Chat</button>
             <button id="miawButton" style="display: none;">MIAW</button>
         </div>
+        <p>
+            <a href="#" class="github-link" onclick="redirectToSalesforce(event)">
+                Visit GitHub Repository
+            </a>
+        </p>
     </div>
 </body>
 </html>
