@@ -52,6 +52,7 @@ return Array.from(array).map(byte => ('0' + byte.toString(16)).slice(-2)).join('
                 if (authorizationCode) {
                     // Exchange the authorization code for an access token
                     const accessToken = await getAccessToken(authorizationCode);
+                    Console.log('accessToken ' + accessToken);
                     if (accessToken) {
                         // Use the access token to call the Salesforce API
                         getCustomSetting(accessToken);
@@ -99,6 +100,7 @@ return Array.from(array).map(byte => ('0' + byte.toString(16)).slice(-2)).join('
 
             if (response.ok) {
                 const settingValue = await response.text();
+                console.log('settingValue ' + settingValue);
                 showButtons(settingValue);
             } else {
                 alert('Failed to fetch setting: ' + response.status);
