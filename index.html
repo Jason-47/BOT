@@ -151,27 +151,28 @@
         }
 
         // Function to initialize embedded messaging
-        function initEmbeddedMessaging() {
-            try {
-                embeddedservice_bootstrap.settings.language = 'en_US'; // For example, enter 'en' or 'en-US'
-                embeddedservice_bootstrap.init(
-                    '00DDQ0000008icf',
-                    'PortalMIAWDep',
-                    'https://tricore--dev.sandbox.my.site.com/ESWPortalMIAWDep1728294947017',
-                    {
-                        scrt2URL: 'https://tricore--dev.sandbox.my.salesforce-scrt.com'
-                    }
-                );
-            } catch (err) {
-                console.error('Error loading Embedded Messaging: ', err);
-            }
-        }
+     	function initEmbeddedMessaging() {
+		try {
+			embeddedservice_bootstrap.settings.language = 'en_US'; // For example, enter 'en' or 'en-US'
+
+			embeddedservice_bootstrap.init(
+				'00DDQ0000008icf',
+				'AIChatBot',
+				'https://tricore--dev.sandbox.my.site.com/ESWAIChatBot1726132255017',
+				{
+					scrt2URL: 'https://tricore--dev.sandbox.my.salesforce-scrt.com'
+				}
+			);
+		} catch (err) {
+			console.error('Error loading Embedded Messaging: ', err);
+		}
+	};
 
         // Function to load MIAW script
         function loadMIAWScript() {
             const script = document.createElement('script');
             script.type = 'text/javascript';
-            script.src = 'https://tricore--dev.sandbox.my.site.com/ESWPortalMIAWDep1728294947017/assets/js/bootstrap.min.js';
+            script.src = 'https://tricore--dev.sandbox.my.site.com/ESWAIChatBot1726132255017/assets/js/bootstrap.min.js';
             script.onload = initEmbeddedMessaging;
             document.body.appendChild(script);
         }
