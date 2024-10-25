@@ -5,17 +5,17 @@
     <script>
         // Configuration
         const CONFIG = {
-            // Salesforce URLs and credentials
             instanceUrl: 'https://tricore--dev.sandbox.my.salesforce.com',
             tokenUrl: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token',
             clientId: '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ',
             clientSecret: 'C96A75326B8959F050424B364AE27BEF5AAC11EAC238B11D1613F069A8FDD05F',
-            username: 'mailto:ssnappism2@ismsystems.com.dev',
+            username: 'ssnappism2@ismsystems.com.dev',
             password: '!Smdemo12345678bjDmgfGAnz4EKCbg9jPCK41t7'
         };
 
-        // Access token get karne ka function
+        // Access token function with enhanced logging
         async function getAccessToken() {
+            console.log('Starting getAccessToken process...');
             try {
                 const params = new URLSearchParams({
                     grant_type: 'password',
@@ -25,59 +25,82 @@
                     password: CONFIG.password
                 });
 
+                console.log('Preparing to fetch token with params:', {
+                    grant_type: 'password',
+                    client_id: CONFIG.clientId.substring(0, 10) + '...', // Log partial client ID for security
+                    username: CONFIG.username
+                });
+
                 const response = await fetch(CONFIG.tokenUrl, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': 'application/json'
                     },
                     body: params
                 });
 
+                console.log('Token response status:', response.status);
+                console.log('Token response headers:', Object.fromEntries(response.headers));
+
                 if (!response.ok) {
-                    throw new Error('Token fetch failed: ' + response.status);
+                    const errorText = await response.text();
+                    console.error('Token response error text:', errorText);
+                    throw new Error(`Token fetch failed: ${response.status} - ${errorText}`);
                 }
 
                 const data = await response.json();
+                console.log('Token fetch successful. Instance URL:', data.instance_url);
                 return {
                     accessToken: data.access_token,
                     instanceUrl: data.instance_url
                 };
             } catch (error) {
-                console.error('Token Error:', error);
+                console.error('Detailed token error:', {
+                    message: error.message,
+                    stack: error.stack
+                });
                 document.getElementById('status').textContent = 'Token Error: ' + error.message;
                 throw error;
             }
         }
 
-        // Salesforce mein redirect karne ka function
+        // Redirect function with enhanced logging
         async function redirectToSalesforce(event) {
+            console.log('Starting redirect process...');
             event.preventDefault();
             document.getElementById('status').textContent = 'Authenticating...';
-            
+
             try {
-                // Pehle access token get karo
+                console.log('Attempting to get access token...');
                 const authData = await getAccessToken();
                 
-                // Access token ko localStorage mein save karo
+                console.log('Access token received, length:', authData.accessToken?.length);
                 localStorage.setItem('sf_access_token', authData.accessToken);
                 
-                // Frontdoor URL create karo (ye special URL hai jo direct org mein le jayega)
                 const frontdoorUrl = `${CONFIG.instanceUrl}/secur/frontdoor.jsp?sid=${authData.accessToken}`;
+                console.log('Redirecting to frontdoor URL:', frontdoorUrl.substring(0, 50) + '...');
                 
-                // Redirect karo
                 window.location.href = frontdoorUrl;
             } catch (error) {
-                document.getElementById('status').textContent = 'Redirect Error: ' + error.message;
-                console.error('Redirect Error:', error);
+                const errorMessage = 'Redirect Error: ' + error.message;
+                console.error(errorMessage, {
+                    error: error,
+                    stack: error.stack
+                });
+                document.getElementById('status').textContent = errorMessage;
             }
         }
 
-        // Initial load pe check karo ki already logged in hai ya nahi
+        // Window load handler with logging
         window.onload = function() {
+            console.log('Page loaded, checking authentication status...');
             const token = localStorage.getItem('sf_access_token');
             if (token) {
+                console.log('Existing token found in localStorage');
                 document.getElementById('status').textContent = 'Already authenticated';
             } else {
+                console.log('No existing token found');
                 document.getElementById('status').textContent = 'Ready to authenticate';
             }
         };
