@@ -42,9 +42,6 @@
             color: #c23934;
             margin-top: 10px;
         }
-        .btn-chat-offline {
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -53,14 +50,7 @@
         <button id="legacyChat">Legacy Chat</button>
         <button id="miawChat">MIAW Chat</button>
         <div id="error" class="error"></div>
-        
-        <!-- Hidden LiveAgent elements -->
-        <div id="liveagent_button_online_5734y0000008PTF" style="display: none;"></div>
-        <div id="liveagent_button_offline_5734y0000008PTF" style="display: none;"></div>
     </div>
-
-    <!-- LiveAgent Deployment Script -->
-    <script type="text/javascript" src="https://c.la3-c1-ia4.salesforceliveagent.com/content/g/js/55.0/deployment.js"></script>
 
     <script>
         // Configuration object
@@ -71,41 +61,6 @@
             TOKEN_URL: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token',
             API_URL: '/services/apexrest/settings'
         };
-
-        // Global variable to track LiveAgent initialization
-        let liveAgentInitialized = false;
-
-        // LiveAgent initialization
-        function initializeLiveAgent(callback) {
-            if (!window._laq) { 
-                window._laq = []; 
-            }
-
-            // Add initialization callback
-            window._laq.push(function() {
-                liveagent.showWhenOnline('5734y0000008PTF', document.getElementById('liveagent_button_online_5734y0000008PTF'));
-                liveagent.showWhenOffline('5734y0000008PTF', document.getElementById('liveagent_button_offline_5734y0000008PTF'));
-                
-                // Set initialization flag and call callback
-                liveAgentInitialized = true;
-                if (callback) callback();
-            });
-
-            // Initialize LiveAgent
-            liveagent.init('https://d.la3-c1-ia4.salesforceliveagent.com/chat', '572330000004CuZ', '00D40000000N3ML');
-        }
-
-        // Function to start LiveAgent chat with initialization check
-        function startLiveAgentChat() {
-            if (liveAgentInitialized) {
-                liveagent.startChat('5734y0000008PTF');
-            } else {
-                console.log('LiveAgent not yet initialized, initializing now...');
-                initializeLiveAgent(function() {
-                    liveagent.startChat('5734y0000008PTF');
-                });
-            }
-        }
 
         // Function to generate random state
         function generateState() {
@@ -181,6 +136,7 @@
                 const settingText = await response.text();
                 console.log('Raw setting value:', settingText);
 
+                // Remove quotes and whitespace, then compare
                 const cleanValue = settingText.replace(/['"]/g, '').trim();
                 const enableMIAW = cleanValue === 'true';
                 console.log('Enable MIAW:', enableMIAW);
@@ -195,21 +151,22 @@
         }
 
         // Function to initialize embedded messaging
-        function initEmbeddedMessaging() {
-            try {
-                embeddedservice_bootstrap.settings.language = 'en_US';
-                embeddedservice_bootstrap.init(
-                    '00DDQ0000008icf',
-                    'AIChatBot',
-                    'https://tricore--dev.sandbox.my.site.com/ESWAIChatBot1726132255017',
-                    {
-                        scrt2URL: 'https://tricore--dev.sandbox.my.salesforce-scrt.com'
-                    }
-                );
-            } catch (err) {
-                console.error('Error loading Embedded Messaging: ', err);
-            }
-        }
+     	function initEmbeddedMessaging() {
+		try {
+			embeddedservice_bootstrap.settings.language = 'en_US'; // For example, enter 'en' or 'en-US'
+
+			embeddedservice_bootstrap.init(
+				'00DDQ0000008icf',
+				'AIChatBot',
+				'https://tricore--dev.sandbox.my.site.com/ESWAIChatBot1726132255017',
+				{
+					scrt2URL: 'https://tricore--dev.sandbox.my.salesforce-scrt.com'
+				}
+			);
+		} catch (err) {
+			console.error('Error loading Embedded Messaging: ', err);
+		}
+	};
 
         // Function to load MIAW script
         function loadMIAWScript() {
@@ -228,18 +185,18 @@
             const legacyChat = document.getElementById('legacyChat');
             const miawChat = document.getElementById('miawChat');
 
+            // Hide login button
             loginBtn.style.display = 'none';
 
+            // Show appropriate chat button based on enableMIAW value
             if (enableMIAW) {
-                miawChat.style.display = 'inline-block';
-                legacyChat.style.display = 'none';
+                miawChat.style.display = 'inline-block';  // Show MIAW chat when true
+                legacyChat.style.display = 'none';        // Hide Legacy chat when true
                 console.log('Showing MIAW chat button');
             } else {
-                legacyChat.style.display = 'inline-block';
-                miawChat.style.display = 'none';
+                legacyChat.style.display = 'inline-block'; // Show Legacy chat when false
+                miawChat.style.display = 'none';           // Hide MIAW chat when false
                 console.log('Showing Legacy chat button');
-                // Initialize LiveAgent without starting chat
-                initializeLiveAgent();
             }
         }
 
@@ -252,11 +209,13 @@
 
         // Initialize event listeners
         document.addEventListener('DOMContentLoaded', function() {
+            // Add click listener for login button
             document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
 
+            // Add click listeners for chat buttons
             document.getElementById('legacyChat').addEventListener('click', () => {
                 console.log('Legacy Chat clicked');
-                startLiveAgentChat();
+                // Add your legacy chat implementation here
             });
 
             document.getElementById('miawChat').addEventListener('click', () => {
@@ -264,11 +223,13 @@
                 loadMIAWScript();
             });
 
+            // Check if we're returning from OAuth
             if (window.location.hash) {
                 handleCallback();
             }
         });
 
+        // Check for session tokens and fetch setting if they exist
         if (sessionStorage.getItem('access_token') && sessionStorage.getItem('instance_url')) {
             fetchCustomSetting();
         }
