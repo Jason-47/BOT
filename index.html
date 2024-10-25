@@ -61,92 +61,38 @@
             API_URL: '/services/apexrest/settings'
         };
 
-        // Generate random string for state
-        function generateRandomString(length) {
-            const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-            let text = '';
-            for (let i = 0; i < length; i++) {
-                text += possible.charAt(Math.floor(Math.random() * possible.length));
-            }
-            return text;
-        }
-
-        // Generate PKCE code verifier and challenge
-        async function generatePKCE() {
-            const codeVerifier = generateRandomString(128);
-            const encoder = new TextEncoder();
-            const data = encoder.encode(codeVerifier);
-            const digest = await window.crypto.subtle.digest('SHA-256', data);
-            const base64Challenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=+$/, '');
-            return { codeVerifier, codeChallenge: base64Challenge };
+        // Function to parse URL parameters
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            const results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
         }
 
         // Initialize OAuth flow
-        async function initializeOAuth() {
-            const { codeVerifier, codeChallenge } = await generatePKCE();
-            const state = generateRandomString(16);
-            
-            // Store PKCE and state in sessionStorage
-            sessionStorage.setItem('codeVerifier', codeVerifier);
-            sessionStorage.setItem('state', state);
-
-            // Construct authorization URL
+        function initializeOAuth() {
+            // Construct authorization URL with response_type=token for implicit grant
             const authUrl = new URL(CONFIG.AUTH_URL);
-            authUrl.searchParams.append('response_type', 'code');
+            authUrl.searchParams.append('response_type', 'token');
             authUrl.searchParams.append('client_id', CONFIG.CLIENT_ID);
             authUrl.searchParams.append('redirect_uri', CONFIG.REDIRECT_URI);
-            authUrl.searchParams.append('state', state);
-            authUrl.searchParams.append('code_challenge', codeChallenge);
-            authUrl.searchParams.append('code_challenge_method', 'S256');
 
             // Redirect to Salesforce login
             window.location.href = authUrl.toString();
         }
 
         // Handle OAuth callback
-        async function handleCallback() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const code = urlParams.get('code');
-            const state = urlParams.get('state');
-            const storedState = sessionStorage.getItem('state');
-            const codeVerifier = sessionStorage.getItem('codeVerifier');
+        function handleCallback() {
+            // For implicit grant, token is in URL fragment
+            const hash = window.location.hash.substring(1);
+            const params = new URLSearchParams(hash);
+            const accessToken = params.get('access_token');
+            const instanceUrl = params.get('instance_url');
 
-            if (state !== storedState) {
-                showError('Invalid state parameter');
-                return;
-            }
-
-            try {
-                // Exchange code for token
-                const tokenResponse = await fetch(CONFIG.TOKEN_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: new URLSearchParams({
-                        grant_type: 'authorization_code',
-                        code,
-                        client_id: CONFIG.CLIENT_ID,
-                        redirect_uri: CONFIG.REDIRECT_URI,
-                        code_verifier: codeVerifier
-                    })
-                });
-
-                if (!tokenResponse.ok) {
-                    throw new Error('Token exchange failed');
-                }
-
-                const tokenData = await tokenResponse.json();
-                sessionStorage.setItem('access_token', tokenData.access_token);
-                sessionStorage.setItem('instance_url', tokenData.instance_url);
-
-                // Fetch custom setting
-                await fetchCustomSetting();
-            } catch (error) {
-                showError(error.message);
+            if (accessToken && instanceUrl) {
+                sessionStorage.setItem('access_token', accessToken);
+                sessionStorage.setItem('instance_url', instanceUrl);
+                fetchCustomSetting();
             }
         }
 
@@ -156,9 +102,16 @@
                 const accessToken = sessionStorage.getItem('access_token');
                 const instanceUrl = sessionStorage.getItem('instance_url');
 
+                if (!accessToken || !instanceUrl) {
+                    throw new Error('Not authenticated');
+                }
+
+                // Use the proxy endpoint
                 const response = await fetch(`${instanceUrl}${CONFIG.API_URL}`, {
+                    method: 'GET',
                     headers: {
-                        'Authorization': `Bearer ${accessToken}`
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Accept': 'application/json'
                     }
                 });
 
@@ -170,6 +123,7 @@
                 updateUI(setting === 'true');
             } catch (error) {
                 showError(error.message);
+                console.error('Error:', error);
             }
         }
 
@@ -188,10 +142,21 @@
         // Event listeners
         document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
 
-        // Check if this is a callback from Salesforce
-        if (window.location.search.includes('code=')) {
+        // Check for access token in URL hash (for implicit grant)
+        if (window.location.hash) {
             handleCallback();
         }
+
+        // Add click handlers for chat buttons
+        document.getElementById('legacyChat').addEventListener('click', () => {
+            console.log('Legacy Chat clicked');
+            // Add your legacy chat logic here
+        });
+
+        document.getElementById('miawChat').addEventListener('click', () => {
+            console.log('MIAW Chat clicked');
+            // Add your MIAW chat logic here
+        });
     </script>
 </body>
 </html>
