@@ -72,16 +72,39 @@
             API_URL: '/services/apexrest/settings'
         };
 
+        // Global variable to track LiveAgent initialization
+        let liveAgentInitialized = false;
+
         // LiveAgent initialization
-        function initializeLiveAgent() {
+        function initializeLiveAgent(callback) {
             if (!window._laq) { 
                 window._laq = []; 
             }
+
+            // Add initialization callback
             window._laq.push(function() {
                 liveagent.showWhenOnline('5734y0000008PTF', document.getElementById('liveagent_button_online_5734y0000008PTF'));
                 liveagent.showWhenOffline('5734y0000008PTF', document.getElementById('liveagent_button_offline_5734y0000008PTF'));
+                
+                // Set initialization flag and call callback
+                liveAgentInitialized = true;
+                if (callback) callback();
             });
+
+            // Initialize LiveAgent
             liveagent.init('https://d.la3-c1-ia4.salesforceliveagent.com/chat', '572330000004CuZ', '00D40000000N3ML');
+        }
+
+        // Function to start LiveAgent chat with initialization check
+        function startLiveAgentChat() {
+            if (liveAgentInitialized) {
+                liveagent.startChat('5734y0000008PTF');
+            } else {
+                console.log('LiveAgent not yet initialized, initializing now...');
+                initializeLiveAgent(function() {
+                    liveagent.startChat('5734y0000008PTF');
+                });
+            }
         }
 
         // Function to generate random state
@@ -215,7 +238,8 @@
                 legacyChat.style.display = 'inline-block';
                 miawChat.style.display = 'none';
                 console.log('Showing Legacy chat button');
-                initializeLiveAgent(); // Initialize LiveAgent when legacy chat is enabled
+                // Initialize LiveAgent without starting chat
+                initializeLiveAgent();
             }
         }
 
@@ -232,7 +256,7 @@
 
             document.getElementById('legacyChat').addEventListener('click', () => {
                 console.log('Legacy Chat clicked');
-                liveagent.startChat('5734y0000008PTF');
+                startLiveAgentChat();
             });
 
             document.getElementById('miawChat').addEventListener('click', () => {
