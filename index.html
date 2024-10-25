@@ -1,148 +1,196 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Fetch Custom Settings and Show Buttons with PKCE</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce Settings UI</title>
     <style>
-        #legacyChatButton, #miawButton {
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+        }
+        .container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        button {
             padding: 10px 20px;
             margin: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #loginBtn {
+            background-color: #0070d2;
+            color: white;
+        }
+        #legacyChat, #miawChat {
             display: none;
+            background-color: #04844b;
+            color: white;
+        }
+        .error {
+            color: #c23934;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
-    <h2>Custom Setting Value</h2>
-    <div id="buttonContainer">
-        <button id="legacyChatButton">Legacy Chat</button>
-        <button id="miawButton">MIAW</button>
+    <div class="container">
+        <button id="loginBtn">Login with Salesforce</button>
+        <button id="legacyChat">Legacy Chat</button>
+        <button id="miawChat">MIAW Chat</button>
+        <div id="error" class="error"></div>
     </div>
 
     <script>
-        // Your Salesforce org's details
-        const CLIENT_ID = '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ';
-        const REDIRECT_URI = 'https://jason-47.github.io/BOT';
-        const AUTH_URL = 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/authorize';
-        const TOKEN_URL = 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token';
-        const API_URL = '/services/apexrest/settings';
+        const CONFIG = {
+            CLIENT_ID: '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ',
+            REDIRECT_URI: 'https://jason-47.github.io/BOT',
+            AUTH_URL: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/authorize',
+            TOKEN_URL: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token',
+            API_URL: '/services/apexrest/settings'
+        };
 
-        function generateCodeVerifier() {
-            const array = new Uint8Array(32);
-            window.crypto.getRandomValues(array);
-            return Array.from(array).map(byte => ('0' + byte.toString(16)).slice(-2)).join('');
+        // Generate random string for state
+        function generateRandomString(length) {
+            const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let text = '';
+            for (let i = 0; i < length; i++) {
+                text += possible.charAt(Math.floor(Math.random() * possible.length));
+            }
+            return text;
         }
 
-        async function generateCodeChallenge(verifier) {
+        // Generate PKCE code verifier and challenge
+        async function generatePKCE() {
+            const codeVerifier = generateRandomString(128);
             const encoder = new TextEncoder();
-            const data = encoder.encode(verifier);
+            const data = encoder.encode(codeVerifier);
             const digest = await window.crypto.subtle.digest('SHA-256', data);
-            const base64Digest = btoa(String.fromCharCode.apply(null, new Uint8Array(digest)))
+            const base64Challenge = btoa(String.fromCharCode(...new Uint8Array(digest)))
                 .replace(/\+/g, '-')
                 .replace(/\//g, '_')
                 .replace(/=+$/, '');
-            return base64Digest;
+            return { codeVerifier, codeChallenge: base64Challenge };
         }
 
-        function showButtons(settingValue) {
-            console.log('Showing buttons with setting value:', settingValue);
-            const legacyButton = document.getElementById('legacyChatButton');
-            const miawButton = document.getElementById('miawButton');
+        // Initialize OAuth flow
+        async function initializeOAuth() {
+            const { codeVerifier, codeChallenge } = await generatePKCE();
+            const state = generateRandomString(16);
             
-            const settingIsTrue = settingValue.trim().toLowerCase() === 'true';
-            console.log('Setting is true:', settingIsTrue);
+            // Store PKCE and state in sessionStorage
+            sessionStorage.setItem('codeVerifier', codeVerifier);
+            sessionStorage.setItem('state', state);
 
-            if (settingIsTrue) {
-                legacyButton.style.display = 'none';
-                miawButton.style.display = 'block';
-            } else {
-                legacyButton.style.display = 'block';
-                miawButton.style.display = 'none';
+            // Construct authorization URL
+            const authUrl = new URL(CONFIG.AUTH_URL);
+            authUrl.searchParams.append('response_type', 'code');
+            authUrl.searchParams.append('client_id', CONFIG.CLIENT_ID);
+            authUrl.searchParams.append('redirect_uri', CONFIG.REDIRECT_URI);
+            authUrl.searchParams.append('state', state);
+            authUrl.searchParams.append('code_challenge', codeChallenge);
+            authUrl.searchParams.append('code_challenge_method', 'S256');
+
+            // Redirect to Salesforce login
+            window.location.href = authUrl.toString();
+        }
+
+        // Handle OAuth callback
+        async function handleCallback() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            const storedState = sessionStorage.getItem('state');
+            const codeVerifier = sessionStorage.getItem('codeVerifier');
+
+            if (state !== storedState) {
+                showError('Invalid state parameter');
+                return;
+            }
+
+            try {
+                // Exchange code for token
+                const tokenResponse = await fetch(CONFIG.TOKEN_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: new URLSearchParams({
+                        grant_type: 'authorization_code',
+                        code,
+                        client_id: CONFIG.CLIENT_ID,
+                        redirect_uri: CONFIG.REDIRECT_URI,
+                        code_verifier: codeVerifier
+                    })
+                });
+
+                if (!tokenResponse.ok) {
+                    throw new Error('Token exchange failed');
+                }
+
+                const tokenData = await tokenResponse.json();
+                sessionStorage.setItem('access_token', tokenData.access_token);
+                sessionStorage.setItem('instance_url', tokenData.instance_url);
+
+                // Fetch custom setting
+                await fetchCustomSetting();
+            } catch (error) {
+                showError(error.message);
             }
         }
 
-        async function getCustomSetting(accessToken) {
+        // Fetch custom setting from Salesforce
+        async function fetchCustomSetting() {
             try {
-                console.log('Fetching custom setting with token');
-                const response = await fetch(API_URL, {
-                    method: 'GET',
+                const accessToken = sessionStorage.getItem('access_token');
+                const instanceUrl = sessionStorage.getItem('instance_url');
+
+                const response = await fetch(`${instanceUrl}${CONFIG.API_URL}`, {
                     headers: {
                         'Authorization': `Bearer ${accessToken}`
                     }
                 });
 
-                if (response.ok) {
-                    const settingValue = await response.text();
-                    console.log('Received setting value:', settingValue);
-                    showButtons(settingValue);
-                } else {
-                    console.error('Failed to fetch setting:', response.status);
-                    document.getElementById('legacyChatButton').style.display = 'block';
+                if (!response.ok) {
+                    throw new Error('Failed to fetch custom setting');
                 }
+
+                const setting = await response.text();
+                updateUI(setting === 'true');
             } catch (error) {
-                console.error('Error fetching custom setting:', error);
-                document.getElementById('legacyChatButton').style.display = 'block';
+                showError(error.message);
             }
         }
 
-        async function getAccessToken(code) {
-            const codeVerifier = sessionStorage.getItem('code_verifier');
-            
-            try {
-                const response = await fetch(TOKEN_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    },
-                    body: `grant_type=authorization_code&code=${code}&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&code_verifier=${codeVerifier}`
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    return data.access_token;
-                } else {
-                    console.error('Failed to get access token:', response.status);
-                    return null;
-                }
-            } catch (error) {
-                console.error('Error getting access token:', error);
-                return null;
-            }
+        // Update UI based on custom setting
+        function updateUI(enableMIAW) {
+            document.getElementById('loginBtn').style.display = 'none';
+            document.getElementById('legacyChat').style.display = enableMIAW ? 'none' : 'inline-block';
+            document.getElementById('miawChat').style.display = enableMIAW ? 'inline-block' : 'none';
         }
 
-        async function initializeAuth() {
-            // Check if we're on the callback page
-            const urlParams = new URLSearchParams(window.location.search);
-            const code = urlParams.get('code');
-            
-            if (code) {
-                // We're on the callback page
-                try {
-                    const accessToken = await getAccessToken(code);
-                    if (accessToken) {
-                        await getCustomSetting(accessToken);
-                    } else {
-                        document.getElementById('legacyChatButton').style.display = 'block';
-                    }
-                } catch (error) {
-                    console.error('Error handling callback:', error);
-                    document.getElementById('legacyChatButton').style.display = 'block';
-                }
-            } else {
-                // We're on the main page, start the auth flow
-                const codeVerifier = generateCodeVerifier();
-                const codeChallenge = await generateCodeChallenge(codeVerifier);
-                sessionStorage.setItem('code_verifier', codeVerifier);
-
-                window.location.href = `${AUTH_URL}?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
-            }
+        // Show error message
+        function showError(message) {
+            document.getElementById('error').textContent = message;
         }
 
-        // Only run initialization if we haven't already started the process
-        if (!sessionStorage.getItem('auth_in_progress')) {
-            sessionStorage.setItem('auth_in_progress', 'true');
-            initializeAuth().catch(error => {
-                console.error('Authentication failed:', error);
-                document.getElementById('legacyChatButton').style.display = 'block';
-            });
+        // Event listeners
+        document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
+
+        // Check if this is a callback from Salesforce
+        if (window.location.search.includes('code=')) {
+            handleCallback();
         }
     </script>
 </body>
