@@ -53,6 +53,7 @@
     </div>
 
     <script>
+        // Configuration object
         const CONFIG = {
             CLIENT_ID: '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ',
             REDIRECT_URI: 'https://jason-47.github.io/BOT',
@@ -61,42 +62,54 @@
             API_URL: '/services/apexrest/settings'
         };
 
-        // Function to parse URL parameters
-        function getUrlParameter(name) {
-            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
-            const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
-            const results = regex.exec(location.search);
-            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        // Function to generate random state
+        function generateState() {
+            return Math.random().toString(36).substring(2, 15);
         }
 
-        // Initialize OAuth flow
+        // Function to initialize OAuth flow
         function initializeOAuth() {
-            // Construct authorization URL with response_type=token for implicit grant
+            const state = generateState();
+            sessionStorage.setItem('oauth_state', state);
+
             const authUrl = new URL(CONFIG.AUTH_URL);
             authUrl.searchParams.append('response_type', 'token');
             authUrl.searchParams.append('client_id', CONFIG.CLIENT_ID);
             authUrl.searchParams.append('redirect_uri', CONFIG.REDIRECT_URI);
+            authUrl.searchParams.append('state', state);
 
-            // Redirect to Salesforce login
+            console.log('Initiating OAuth flow with URL:', authUrl.toString());
             window.location.href = authUrl.toString();
         }
 
-        // Handle OAuth callback
+        // Function to handle OAuth callback
         function handleCallback() {
-            // For implicit grant, token is in URL fragment
+            console.log('Handling OAuth callback');
             const hash = window.location.hash.substring(1);
             const params = new URLSearchParams(hash);
+            
             const accessToken = params.get('access_token');
             const instanceUrl = params.get('instance_url');
+            const state = params.get('state');
+            
+            const savedState = sessionStorage.getItem('oauth_state');
+
+            if (state !== savedState) {
+                showError('Invalid state parameter');
+                return;
+            }
 
             if (accessToken && instanceUrl) {
+                console.log('Received access token and instance URL');
                 sessionStorage.setItem('access_token', accessToken);
                 sessionStorage.setItem('instance_url', instanceUrl);
                 fetchCustomSetting();
+            } else {
+                showError('Authentication failed');
             }
         }
 
-        // Fetch custom setting from Salesforce
+        // Function to fetch custom setting
         async function fetchCustomSetting() {
             try {
                 const accessToken = sessionStorage.getItem('access_token');
@@ -106,7 +119,8 @@
                     throw new Error('Not authenticated');
                 }
 
-                // Use the proxy endpoint
+                console.log('Fetching custom setting from:', `${instanceUrl}${CONFIG.API_URL}`);
+                
                 const response = await fetch(`${instanceUrl}${CONFIG.API_URL}`, {
                     method: 'GET',
                     headers: {
@@ -116,47 +130,86 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch custom setting');
+                    throw new Error(`Failed to fetch custom setting: ${response.status}`);
                 }
 
-                const setting = await response.text();
-                updateUI(setting === 'true');
+                const settingText = await response.text();
+                console.log('Raw setting value:', settingText);
+
+                // Clean and validate the setting value
+                const cleanSetting = settingText.trim().toLowerCase();
+                console.log('Cleaned setting value:', cleanSetting);
+
+                if (cleanSetting === 'true' || cleanSetting === 'false') {
+                    updateUI(cleanSetting === 'true');
+                } else {
+                    console.error('Invalid setting value received:', settingText);
+                    updateUI(false); // Default to legacy chat
+                }
+
             } catch (error) {
+                console.error('Error fetching custom setting:', error);
                 showError(error.message);
-                console.error('Error:', error);
+                updateUI(false); // Show legacy chat on error
             }
         }
 
-        // Update UI based on custom setting
+        // Function to update UI based on setting
         function updateUI(enableMIAW) {
-            document.getElementById('loginBtn').style.display = 'none';
-            document.getElementById('legacyChat').style.display = enableMIAW ? 'none' : 'inline-block';
-            document.getElementById('miawChat').style.display = enableMIAW ? 'inline-block' : 'none';
+            console.log('Updating UI, enableMIAW:', enableMIAW);
+            
+            const loginBtn = document.getElementById('loginBtn');
+            const legacyChat = document.getElementById('legacyChat');
+            const miawChat = document.getElementById('miawChat');
+
+            // Hide login button
+            loginBtn.style.display = 'none';
+
+            // Show appropriate chat button
+            if (enableMIAW) {
+                legacyChat.style.display = 'none';
+                miawChat.style.display = 'inline-block';
+                console.log('Showing MIAW chat button');
+            } else {
+                legacyChat.style.display = 'inline-block';
+                miawChat.style.display = 'none';
+                console.log('Showing Legacy chat button');
+            }
         }
 
-        // Show error message
+        // Function to show error messages
         function showError(message) {
-            document.getElementById('error').textContent = message;
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            console.error('Error:', message);
         }
 
-        // Event listeners
-        document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
+        // Initialize event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click listener for login button
+            document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
 
-        // Check for access token in URL hash (for implicit grant)
-        if (window.location.hash) {
-            handleCallback();
+            // Add click listeners for chat buttons
+            document.getElementById('legacyChat').addEventListener('click', () => {
+                console.log('Legacy Chat clicked');
+                // Add your legacy chat implementation here
+            });
+
+            document.getElementById('miawChat').addEventListener('click', () => {
+                console.log('MIAW Chat clicked');
+                // Add your MIAW chat implementation here
+            });
+
+            // Check if we're returning from OAuth
+            if (window.location.hash) {
+                handleCallback();
+            }
+        });
+
+        // Check for session tokens and fetch setting if they exist
+        if (sessionStorage.getItem('access_token') && sessionStorage.getItem('instance_url')) {
+            fetchCustomSetting();
         }
-
-        // Add click handlers for chat buttons
-        document.getElementById('legacyChat').addEventListener('click', () => {
-            console.log('Legacy Chat clicked');
-            // Add your legacy chat logic here
-        });
-
-        document.getElementById('miawChat').addEventListener('click', () => {
-            console.log('MIAW Chat clicked');
-            // Add your MIAW chat logic here
-        });
     </script>
 </body>
 </html>
