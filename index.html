@@ -165,14 +165,14 @@
             // Hide login button
             loginBtn.style.display = 'none';
 
-            // Show appropriate chat button
+            // Show appropriate chat button based on enableMIAW value
             if (enableMIAW) {
-                legacyChat.style.display = 'none';
-                miawChat.style.display = 'inline-block';
+                miawChat.style.display = 'inline-block';  // Show MIAW chat when true
+                legacyChat.style.display = 'none';        // Hide Legacy chat when true
                 console.log('Showing MIAW chat button');
             } else {
-                legacyChat.style.display = 'inline-block';
-                miawChat.style.display = 'none';
+                legacyChat.style.display = 'inline-block'; // Show Legacy chat when false
+                miawChat.style.display = 'none';           // Hide MIAW chat when false
                 console.log('Showing Legacy chat button');
             }
         }
