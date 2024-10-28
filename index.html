@@ -52,12 +52,11 @@
         <div id="error" class="error"></div>
         
         <!-- Hidden elements for LiveAgent -->
-        <div id="liveagent_button_online_5734y0000008PTF" style="display: none;"></div>
-        <div id="liveagent_button_offline_5734y0000008PTF" style="display: none;"></div>
+        <div id="chatonline"></div>
     </div>
 
     <!-- LiveAgent deployment script -->
-    <script type="text/javascript" src="https://c.la3-c1-ia4.salesforceliveagent.com/content/g/js/55.0/deployment.js"></script>
+    <script type="text/javascript" src="https://c.la1a1.salesforceliveagent.com/content/g/js/36.0/deployment.js"></script>
 
     <script>
         // Configuration object
@@ -84,7 +83,7 @@
             console.log('Initializing LiveAgent...');
             
             // Initialize LiveAgent with a callback
-            liveagent.init('https://d.la3-c1-ia4.salesforceliveagent.com/chat', '572330000004CuZ', '00D40000000N3ML', {
+            liveagent.init('https://c.la1a1.salesforceliveagent.com/chat', '572i0000000AybE', '00Di0000000jR2X', {
                 onInit: function() {
                     console.log('LiveAgent initialized successfully');
                     window.liveAgentReady(); // Resolve the promise when initialization is complete
@@ -92,8 +91,7 @@
             });
             
             window._laq.push(function() {
-                liveagent.showWhenOnline('5734y0000008PTF', document.getElementById('liveagent_button_online_5734y0000008PTF'));
-                liveagent.showWhenOffline('5734y0000008PTF', document.getElementById('liveagent_button_offline_5734y0000008PTF'));
+                liveagent.showWhenOnline('573i0000000B238', document.getElementById('chatonline'));
             });
         }
 
@@ -103,7 +101,7 @@
                 console.log('Waiting for LiveAgent initialization...');
                 await window.liveAgentInitialized;
                 console.log('LiveAgent is ready, starting chat...');
-                liveagent.startChat('5734y0000008PTF');
+                liveagent.startChatWithWindow('573i0000000B238', 'mywindowid');
             } catch (error) {
                 console.error('Error starting LiveAgent chat:', error);
                 showError('Unable to start chat. Please try again.');
@@ -264,15 +262,8 @@
             document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
 
             // Add click listeners for chat buttons
-            document.getElementById('legacyChat').addEventListener('click', () => {
-                console.log('Legacy Chat clicked');
-                startLiveAgentChat();
-            });
-
-            document.getElementById('miawChat').addEventListener('click', () => {
-                console.log('MIAW Chat clicked');
-                loadMIAWScript();
-            });
+            document.getElementById('legacyChat').addEventListener('click', startLiveAgentChat);
+            document.getElementById('miawChat').addEventListener('click', loadMIAWScript);
 
             // Check if we're returning from OAuth
             if (window.location.hash) {
