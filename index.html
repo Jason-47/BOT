@@ -69,6 +69,11 @@
             API_URL: '/services/apexrest/settings'
         };
 
+        // Create a promise to track LiveAgent initialization
+        window.liveAgentInitialized = new Promise((resolve) => {
+            window.liveAgentReady = resolve;
+        });
+
         // Initialize LiveAgent queue
         if (!window._laq) { 
             window._laq = []; 
@@ -76,12 +81,33 @@
 
         // Function to initialize LiveAgent
         function initializeLiveAgent() {
-            liveagent.init('https://d.la3-c1-ia4.salesforceliveagent.com/chat', '572330000004CuZ', '00D40000000N3ML');
+            console.log('Initializing LiveAgent...');
+            
+            // Initialize LiveAgent with a callback
+            liveagent.init('https://d.la3-c1-ia4.salesforceliveagent.com/chat', '572330000004CuZ', '00D40000000N3ML', {
+                onInit: function() {
+                    console.log('LiveAgent initialized successfully');
+                    window.liveAgentReady(); // Resolve the promise when initialization is complete
+                }
+            });
             
             window._laq.push(function() {
                 liveagent.showWhenOnline('5734y0000008PTF', document.getElementById('liveagent_button_online_5734y0000008PTF'));
                 liveagent.showWhenOffline('5734y0000008PTF', document.getElementById('liveagent_button_offline_5734y0000008PTF'));
             });
+        }
+
+        // Function to start LiveAgent chat
+        async function startLiveAgentChat() {
+            try {
+                console.log('Waiting for LiveAgent initialization...');
+                await window.liveAgentInitialized;
+                console.log('LiveAgent is ready, starting chat...');
+                liveagent.startChat('5734y0000008PTF');
+            } catch (error) {
+                console.error('Error starting LiveAgent chat:', error);
+                showError('Unable to start chat. Please try again.');
+            }
         }
 
         // Function to generate random state
@@ -240,12 +266,7 @@
             // Add click listeners for chat buttons
             document.getElementById('legacyChat').addEventListener('click', () => {
                 console.log('Legacy Chat clicked');
-                if (window._laq && typeof liveagent !== 'undefined') {
-                    liveagent.startChat('5734y0000008PTF');
-                } else {
-                    console.error('LiveAgent not properly initialized');
-                    showError('Chat service not available');
-                }
+                startLiveAgentChat();
             });
 
             document.getElementById('miawChat').addEventListener('click', () => {
