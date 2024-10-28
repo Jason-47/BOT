@@ -50,7 +50,14 @@
         <button id="legacyChat">Legacy Chat</button>
         <button id="miawChat">MIAW Chat</button>
         <div id="error" class="error"></div>
+        
+        <!-- Hidden elements for LiveAgent -->
+        <div id="liveagent_button_online_5734y0000008PTF" style="display: none;"></div>
+        <div id="liveagent_button_offline_5734y0000008PTF" style="display: none;"></div>
     </div>
+
+    <!-- LiveAgent deployment script -->
+    <script type="text/javascript" src="https://c.la3-c1-ia4.salesforceliveagent.com/content/g/js/55.0/deployment.js"></script>
 
     <script>
         // Configuration object
@@ -61,6 +68,21 @@
             TOKEN_URL: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token',
             API_URL: '/services/apexrest/settings'
         };
+
+        // Initialize LiveAgent queue
+        if (!window._laq) { 
+            window._laq = []; 
+        }
+
+        // Function to initialize LiveAgent
+        function initializeLiveAgent() {
+            liveagent.init('https://d.la3-c1-ia4.salesforceliveagent.com/chat', '572330000004CuZ', '00D40000000N3ML');
+            
+            window._laq.push(function() {
+                liveagent.showWhenOnline('5734y0000008PTF', document.getElementById('liveagent_button_online_5734y0000008PTF'));
+                liveagent.showWhenOffline('5734y0000008PTF', document.getElementById('liveagent_button_offline_5734y0000008PTF'));
+            });
+        }
 
         // Function to generate random state
         function generateState() {
@@ -151,22 +173,22 @@
         }
 
         // Function to initialize embedded messaging
-     	function initEmbeddedMessaging() {
-		try {
-			embeddedservice_bootstrap.settings.language = 'en_US'; // For example, enter 'en' or 'en-US'
+        function initEmbeddedMessaging() {
+            try {
+                embeddedservice_bootstrap.settings.language = 'en_US';
 
-			embeddedservice_bootstrap.init(
-				'00DDQ0000008icf',
-				'AIChatBot',
-				'https://tricore--dev.sandbox.my.site.com/ESWAIChatBot1726132255017',
-				{
-					scrt2URL: 'https://tricore--dev.sandbox.my.salesforce-scrt.com'
-				}
-			);
-		} catch (err) {
-			console.error('Error loading Embedded Messaging: ', err);
-		}
-	};
+                embeddedservice_bootstrap.init(
+                    '00DDQ0000008icf',
+                    'AIChatBot',
+                    'https://tricore--dev.sandbox.my.site.com/ESWAIChatBot1726132255017',
+                    {
+                        scrt2URL: 'https://tricore--dev.sandbox.my.salesforce-scrt.com'
+                    }
+                );
+            } catch (err) {
+                console.error('Error loading Embedded Messaging: ', err);
+            }
+        }
 
         // Function to load MIAW script
         function loadMIAWScript() {
@@ -190,12 +212,12 @@
 
             // Show appropriate chat button based on enableMIAW value
             if (enableMIAW) {
-                miawChat.style.display = 'inline-block';  // Show MIAW chat when true
-                legacyChat.style.display = 'none';        // Hide Legacy chat when true
+                miawChat.style.display = 'inline-block';
+                legacyChat.style.display = 'none';
                 console.log('Showing MIAW chat button');
             } else {
-                legacyChat.style.display = 'inline-block'; // Show Legacy chat when false
-                miawChat.style.display = 'none';           // Hide MIAW chat when false
+                legacyChat.style.display = 'inline-block';
+                miawChat.style.display = 'none';
                 console.log('Showing Legacy chat button');
             }
         }
@@ -209,13 +231,21 @@
 
         // Initialize event listeners
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize LiveAgent
+            initializeLiveAgent();
+
             // Add click listener for login button
             document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
 
             // Add click listeners for chat buttons
             document.getElementById('legacyChat').addEventListener('click', () => {
                 console.log('Legacy Chat clicked');
-                // Add your legacy chat implementation here
+                if (window._laq && typeof liveagent !== 'undefined') {
+                    liveagent.startChat('5734y0000008PTF');
+                } else {
+                    console.error('LiveAgent not properly initialized');
+                    showError('Chat service not available');
+                }
             });
 
             document.getElementById('miawChat').addEventListener('click', () => {
