@@ -42,7 +42,7 @@
 </head>
 <body>
     <div class="container">
-        <!--button id="loginBtn">Login with Salesforce</button-->
+        <button id="loginBtn">Login with Salesforce</button>
         <button id="legacyChat">Legacy Chat</button>
         <button id="miawChat">MIAW Chat</button>
         
@@ -263,7 +263,7 @@
             try {
                 console.log('Updating UI, enableMIAW:', enableMIAW);
                 
-                //const loginBtn = document.getElementById('loginBtn');
+                const loginBtn = document.getElementById('loginBtn');
                 const legacyChat = document.getElementById('legacyChat');
                 const miawChat = document.getElementById('miawChat');
 
@@ -280,7 +280,7 @@
                 console.error('Error updating UI:', error);
                 // Show legacy chat button as last resort
                 const legacyChat = document.getElementById('legacyChat');
-                //const loginBtn = document.getElementById('loginBtn');
+                const loginBtn = document.getElementById('loginBtn');
                 if (legacyChat && loginBtn) {
                     loginBtn.style.display = 'none';
                     legacyChat.style.display = 'inline-block';
@@ -295,7 +295,7 @@
                 initializeLiveAgent();
 
                 // Add click listener for login button
-                //document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
+                document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
 
                 // Add click listeners for chat buttons
                 document.getElementById('legacyChat').addEventListener('click', () => {
