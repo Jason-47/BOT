@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Salesforce Settings UI</title>
+    <title>Chat UI</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -28,21 +28,14 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 16px;
-        }
-        #loginBtn {
-            background-color: #0070d2;
-            color: white;
-        }
-        #legacyChat, #miawChat {
-            display: none;
             background-color: #04844b;
             color: white;
+            display: none;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <button id="loginBtn">Login with Salesforce</button>
         <button id="legacyChat">Legacy Chat</button>
         <button id="miawChat">MIAW Chat</button>
         
@@ -60,7 +53,6 @@
             CLIENT_ID: '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ',
             REDIRECT_URI: 'https://jason-47.github.io/BOT',
             AUTH_URL: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/authorize',
-            TOKEN_URL: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/token',
             API_URL: '/services/apexrest/settings'
         };
 
@@ -74,23 +66,19 @@
         // Function to fallback to Legacy Chat
         function fallbackToLegacyChat() {
             console.log('Falling back to Legacy Chat');
-            updateUI(false); // Force show Legacy Chat button
+            updateUI(false);
             
-            // Initialize LiveAgent if not already initialized
             if (!window._laq) {
                 initializeLiveAgent();
             }
         }
 
-        // Create a promise to track LiveAgent initialization
+        // Initialize LiveAgent
         window.liveAgentInitialized = new Promise((resolve, reject) => {
             window.liveAgentReady = resolve;
-            setTimeout(() => {
-                reject(new Error('LiveAgent initialization timed out'));
-            }, 10000);
+            setTimeout(() => reject(new Error('LiveAgent initialization timed out')), 10000);
         });
 
-        // Function to initialize LiveAgent
         function initializeLiveAgent() {
             try {
                 console.log('Initializing LiveAgent...');
@@ -129,8 +117,8 @@
             }
         }
 
-        // Function to initialize OAuth flow
-        function initializeOAuth() {
+        // Function to automatically start OAuth flow
+        function autoInitializeOAuth() {
             try {
                 const state = Math.random().toString(36).substring(2, 15);
                 sessionStorage.setItem('oauth_state', state);
@@ -141,7 +129,7 @@
                 authUrl.searchParams.append('redirect_uri', CONFIG.REDIRECT_URI);
                 authUrl.searchParams.append('state', state);
 
-                console.log('Initiating OAuth flow');
+                console.log('Auto-initiating OAuth flow');
                 window.location.href = authUrl.toString();
             } catch (error) {
                 console.error('OAuth initialization error:', error);
@@ -227,7 +215,7 @@
             }
         }
 
-        // Function to load MIAW script with timeout
+        // Function to load MIAW script
         function loadMIAWScript() {
             try {
                 const script = document.createElement('script');
@@ -263,11 +251,8 @@
             try {
                 console.log('Updating UI, enableMIAW:', enableMIAW);
                 
-                const loginBtn = document.getElementById('loginBtn');
                 const legacyChat = document.getElementById('legacyChat');
                 const miawChat = document.getElementById('miawChat');
-
-                loginBtn.style.display = 'none';
 
                 if (enableMIAW) {
                     miawChat.style.display = 'inline-block';
@@ -278,24 +263,18 @@
                 }
             } catch (error) {
                 console.error('Error updating UI:', error);
-                // Show legacy chat button as last resort
                 const legacyChat = document.getElementById('legacyChat');
-                const loginBtn = document.getElementById('loginBtn');
-                if (legacyChat && loginBtn) {
-                    loginBtn.style.display = 'none';
+                if (legacyChat) {
                     legacyChat.style.display = 'inline-block';
                 }
             }
         }
 
-        // Initialize event listeners
+        // Initialize event listeners and check auth status
         document.addEventListener('DOMContentLoaded', function() {
             try {
                 // Initialize LiveAgent
                 initializeLiveAgent();
-
-                // Add click listener for login button
-                document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
 
                 // Add click listeners for chat buttons
                 document.getElementById('legacyChat').addEventListener('click', () => {
@@ -311,11 +290,17 @@
                 // Check if we're returning from OAuth
                 if (window.location.hash) {
                     handleCallback();
-                }
-
-                // Check for session tokens and fetch setting if they exist
-                if (sessionStorage.getItem('access_token') && sessionStorage.getItem('instance_url')) {
-                    fetchCustomSetting();
+                } else {
+                    // Check for existing session
+                    const accessToken = sessionStorage.getItem('access_token');
+                    const instanceUrl = sessionStorage.getItem('instance_url');
+                    
+                    if (accessToken && instanceUrl) {
+                        fetchCustomSetting();
+                    } else {
+                        // Start OAuth flow automatically
+                        autoInitializeOAuth();
+                    }
                 }
             } catch (error) {
                 console.error('Error in initialization:', error);
