@@ -32,10 +32,16 @@
             color: white;
             display: none;
         }
+        #loadingIndicator {
+            display: none;
+            color: #666;
+            margin: 20px 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <div id="loadingIndicator">Loading chat options...</div>
         <button id="legacyChat">Legacy Chat</button>
         <button id="miawChat">MIAW Chat</button>
         
@@ -51,21 +57,25 @@
         // Configuration object
         const CONFIG = {
             CLIENT_ID: '3MVG9SHFu79R42RR04Yt5fB5mocrKgSrjsFwsIlrVzFh9co4ulBSufJOqGZAPNnZs67z28GRqcDuHNHavdZUJ',
-            REDIRECT_URI: 'https://jason-47.github.io/BOT',
+            REDIRECT_URI: 'https://jason-47.github.io/BOT/',
             AUTH_URL: 'https://tricore--dev.sandbox.my.salesforce.com/services/oauth2/authorize',
             API_URL: '/services/apexrest/settings'
         };
 
-        // Global error handler - silently fall back to Legacy Chat
-        window.onerror = function(message, source, lineno, colno, error) {
-            console.error('Global error:', error);
-            fallbackToLegacyChat();
-            return false;
-        };
+        // Function to show loading indicator
+        function showLoading() {
+            document.getElementById('loadingIndicator').style.display = 'block';
+        }
+
+        // Function to hide loading indicator
+        function hideLoading() {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }
 
         // Function to fallback to Legacy Chat
         function fallbackToLegacyChat() {
             console.log('Falling back to Legacy Chat');
+            hideLoading();
             updateUI(false);
             
             if (!window._laq) {
@@ -81,15 +91,12 @@
 
         function initializeLiveAgent() {
             try {
-                console.log('Initializing LiveAgent...');
-                
                 if (!window._laq) { 
                     window._laq = []; 
                 }
 
                 liveagent.init('https://d.la3-c1-ia4.salesforceliveagent.com/chat', '572330000004CuZ', '00D40000000N3ML', true, {
                     onInit: function() {
-                        console.log('LiveAgent initialized successfully');
                         window.liveAgentReady();
                     }
                 });
@@ -107,18 +114,15 @@
         // Function to start LiveAgent chat
         async function startLiveAgentChat() {
             try {
-                console.log('Waiting for LiveAgent initialization...');
                 await window.liveAgentInitialized;
-                console.log('LiveAgent is ready, starting chat...');
                 liveagent.startChat('5734y0000008PTF');
             } catch (error) {
                 console.error('Error starting LiveAgent chat:', error);
-                fallbackToLegacyChat();
             }
         }
 
-        // Function to automatically start OAuth flow
-        function autoInitializeOAuth() {
+        // Function to silently authenticate
+        function silentAuth() {
             try {
                 const state = Math.random().toString(36).substring(2, 15);
                 sessionStorage.setItem('oauth_state', state);
@@ -128,11 +132,12 @@
                 authUrl.searchParams.append('client_id', CONFIG.CLIENT_ID);
                 authUrl.searchParams.append('redirect_uri', CONFIG.REDIRECT_URI);
                 authUrl.searchParams.append('state', state);
+                authUrl.searchParams.append('prompt', 'none'); // Add this to prevent login prompt
+                authUrl.searchParams.append('immediate', 'true'); // Add this for immediate authentication
 
-                console.log('Auto-initiating OAuth flow');
                 window.location.href = authUrl.toString();
             } catch (error) {
-                console.error('OAuth initialization error:', error);
+                console.error('Silent auth error:', error);
                 fallbackToLegacyChat();
             }
         }
@@ -140,7 +145,6 @@
         // Function to handle OAuth callback
         function handleCallback() {
             try {
-                console.log('Handling OAuth callback');
                 const hash = window.location.hash.substring(1);
                 const params = new URLSearchParams(hash);
                 
@@ -156,6 +160,10 @@
 
                 sessionStorage.setItem('access_token', accessToken);
                 sessionStorage.setItem('instance_url', instanceUrl);
+                
+                // Clear the URL hash to clean up
+                history.replaceState(null, '', window.location.pathname);
+                
                 fetchCustomSetting();
             } catch (error) {
                 console.error('OAuth callback error:', error);
@@ -189,6 +197,7 @@
                 const cleanValue = settingText.replace(/['"]/g, '').trim();
                 const enableMIAW = cleanValue === 'true';
                 
+                hideLoading();
                 updateUI(enableMIAW);
             } catch (error) {
                 console.error('Error fetching custom setting:', error);
@@ -222,21 +231,8 @@
                 script.type = 'text/javascript';
                 script.src = 'https://tricore--dev.sandbox.my.site.com/ESWAIChatBot1726132255017/assets/js/bootstrap.min.js';
                 
-                const timeout = setTimeout(() => {
-                    if (!script.loaded) {
-                        fallbackToLegacyChat();
-                    }
-                }, 10000);
-
                 script.onload = () => {
-                    script.loaded = true;
-                    clearTimeout(timeout);
                     initEmbeddedMessaging();
-                };
-
-                script.onerror = () => {
-                    clearTimeout(timeout);
-                    fallbackToLegacyChat();
                 };
 
                 document.body.appendChild(script);
@@ -249,8 +245,6 @@
         // Function to update UI based on setting
         function updateUI(enableMIAW) {
             try {
-                console.log('Updating UI, enableMIAW:', enableMIAW);
-                
                 const legacyChat = document.getElementById('legacyChat');
                 const miawChat = document.getElementById('miawChat');
 
@@ -273,19 +267,12 @@
         // Initialize event listeners and check auth status
         document.addEventListener('DOMContentLoaded', function() {
             try {
-                // Initialize LiveAgent
+                showLoading();
                 initializeLiveAgent();
 
                 // Add click listeners for chat buttons
-                document.getElementById('legacyChat').addEventListener('click', () => {
-                    console.log('Legacy Chat clicked');
-                    startLiveAgentChat();
-                });
-
-                document.getElementById('miawChat').addEventListener('click', () => {
-                    console.log('MIAW Chat clicked');
-                    loadMIAWScript();
-                });
+                document.getElementById('legacyChat').addEventListener('click', startLiveAgentChat);
+                document.getElementById('miawChat').addEventListener('click', loadMIAWScript);
 
                 // Check if we're returning from OAuth
                 if (window.location.hash) {
@@ -298,8 +285,7 @@
                     if (accessToken && instanceUrl) {
                         fetchCustomSetting();
                     } else {
-                        // Start OAuth flow automatically
-                        autoInitializeOAuth();
+                        silentAuth();
                     }
                 }
             } catch (error) {
