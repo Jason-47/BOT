@@ -38,10 +38,6 @@
             background-color: #04844b;
             color: white;
         }
-        .error {
-            color: #c23934;
-            margin-top: 10px;
-        }
     </style>
 </head>
 <body>
@@ -49,7 +45,6 @@
         <button id="loginBtn">Login with Salesforce</button>
         <button id="legacyChat">Legacy Chat</button>
         <button id="miawChat">MIAW Chat</button>
-        <div id="error" class="error"></div>
         
         <!-- Hidden elements for LiveAgent -->
         <div id="liveagent_button_online_5734y0000008PTF" style="display: none;"></div>
@@ -69,32 +64,56 @@
             API_URL: '/services/apexrest/settings'
         };
 
-        // Create a promise to track LiveAgent initialization
-        window.liveAgentInitialized = new Promise((resolve) => {
-            window.liveAgentReady = resolve;
-        });
+        // Global error handler - silently fall back to Legacy Chat
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error('Global error:', error);
+            fallbackToLegacyChat();
+            return false;
+        };
 
-        // Initialize LiveAgent queue
-        if (!window._laq) { 
-            window._laq = []; 
+        // Function to fallback to Legacy Chat
+        function fallbackToLegacyChat() {
+            console.log('Falling back to Legacy Chat');
+            updateUI(false); // Force show Legacy Chat button
+            
+            // Initialize LiveAgent if not already initialized
+            if (!window._laq) {
+                initializeLiveAgent();
+            }
         }
+
+        // Create a promise to track LiveAgent initialization
+        window.liveAgentInitialized = new Promise((resolve, reject) => {
+            window.liveAgentReady = resolve;
+            setTimeout(() => {
+                reject(new Error('LiveAgent initialization timed out'));
+            }, 10000);
+        });
 
         // Function to initialize LiveAgent
         function initializeLiveAgent() {
-            console.log('Initializing LiveAgent...');
-            
-            // Initialize LiveAgent with a callback
-            liveagent.init('https://d.la3-c1-ia4.salesforceliveagent.com/chat', '572330000004CuZ', '00D40000000N3ML', true,{
-                onInit: function() {
-                    console.log('LiveAgent initialized successfully');
-                    window.liveAgentReady(); // Resolve the promise when initialization is complete
+            try {
+                console.log('Initializing LiveAgent...');
+                
+                if (!window._laq) { 
+                    window._laq = []; 
                 }
-            });
-            
-            window._laq.push(function() {
-                liveagent.showWhenOnline('5734y0000008PTF', document.getElementById('liveagent_button_online_5734y0000008PTF'));
-                liveagent.showWhenOffline('5734y0000008PTF', document.getElementById('liveagent_button_offline_5734y0000008PTF'));
-            });
+
+                liveagent.init('https://d.la3-c1-ia4.salesforceliveagent.com/chat', '572330000004CuZ', '00D40000000N3ML', true, {
+                    onInit: function() {
+                        console.log('LiveAgent initialized successfully');
+                        window.liveAgentReady();
+                    }
+                });
+                
+                window._laq.push(function() {
+                    liveagent.showWhenOnline('5734y0000008PTF', document.getElementById('liveagent_button_online_5734y0000008PTF'));
+                    liveagent.showWhenOffline('5734y0000008PTF', document.getElementById('liveagent_button_offline_5734y0000008PTF'));
+                });
+            } catch (error) {
+                console.error('Error in LiveAgent initialization:', error);
+                fallbackToLegacyChat();
+            }
         }
 
         // Function to start LiveAgent chat
@@ -106,54 +125,53 @@
                 liveagent.startChat('5734y0000008PTF');
             } catch (error) {
                 console.error('Error starting LiveAgent chat:', error);
-                showError('Unable to start chat. Please try again.');
+                fallbackToLegacyChat();
             }
-        }
-
-        // Function to generate random state
-        function generateState() {
-            return Math.random().toString(36).substring(2, 15);
         }
 
         // Function to initialize OAuth flow
         function initializeOAuth() {
-            const state = generateState();
-            sessionStorage.setItem('oauth_state', state);
+            try {
+                const state = Math.random().toString(36).substring(2, 15);
+                sessionStorage.setItem('oauth_state', state);
 
-            const authUrl = new URL(CONFIG.AUTH_URL);
-            authUrl.searchParams.append('response_type', 'token');
-            authUrl.searchParams.append('client_id', CONFIG.CLIENT_ID);
-            authUrl.searchParams.append('redirect_uri', CONFIG.REDIRECT_URI);
-            authUrl.searchParams.append('state', state);
+                const authUrl = new URL(CONFIG.AUTH_URL);
+                authUrl.searchParams.append('response_type', 'token');
+                authUrl.searchParams.append('client_id', CONFIG.CLIENT_ID);
+                authUrl.searchParams.append('redirect_uri', CONFIG.REDIRECT_URI);
+                authUrl.searchParams.append('state', state);
 
-            console.log('Initiating OAuth flow with URL:', authUrl.toString());
-            window.location.href = authUrl.toString();
+                console.log('Initiating OAuth flow');
+                window.location.href = authUrl.toString();
+            } catch (error) {
+                console.error('OAuth initialization error:', error);
+                fallbackToLegacyChat();
+            }
         }
 
         // Function to handle OAuth callback
         function handleCallback() {
-            console.log('Handling OAuth callback');
-            const hash = window.location.hash.substring(1);
-            const params = new URLSearchParams(hash);
-            
-            const accessToken = params.get('access_token');
-            const instanceUrl = params.get('instance_url');
-            const state = params.get('state');
-            
-            const savedState = sessionStorage.getItem('oauth_state');
+            try {
+                console.log('Handling OAuth callback');
+                const hash = window.location.hash.substring(1);
+                const params = new URLSearchParams(hash);
+                
+                const accessToken = params.get('access_token');
+                const instanceUrl = params.get('instance_url');
+                const state = params.get('state');
+                
+                const savedState = sessionStorage.getItem('oauth_state');
 
-            if (state !== savedState) {
-                showError('Invalid state parameter');
-                return;
-            }
+                if (!accessToken || !instanceUrl || state !== savedState) {
+                    throw new Error('Invalid OAuth callback parameters');
+                }
 
-            if (accessToken && instanceUrl) {
-                console.log('Received access token and instance URL');
                 sessionStorage.setItem('access_token', accessToken);
                 sessionStorage.setItem('instance_url', instanceUrl);
                 fetchCustomSetting();
-            } else {
-                showError('Authentication failed');
+            } catch (error) {
+                console.error('OAuth callback error:', error);
+                fallbackToLegacyChat();
             }
         }
 
@@ -167,8 +185,6 @@
                     throw new Error('Not authenticated');
                 }
 
-                console.log('Fetching custom setting from:', `${instanceUrl}${CONFIG.API_URL}`);
-                
                 const response = await fetch(`${instanceUrl}${CONFIG.API_URL}`, {
                     method: 'GET',
                     headers: {
@@ -182,19 +198,13 @@
                 }
 
                 const settingText = await response.text();
-                console.log('Raw setting value:', settingText);
-
-                // Remove quotes and whitespace, then compare
                 const cleanValue = settingText.replace(/['"]/g, '').trim();
                 const enableMIAW = cleanValue === 'true';
-                console.log('Enable MIAW:', enableMIAW);
                 
                 updateUI(enableMIAW);
-
             } catch (error) {
                 console.error('Error fetching custom setting:', error);
-                showError(error.message);
-                updateUI(false);
+                fallbackToLegacyChat();
             }
         }
 
@@ -212,78 +222,106 @@
                     }
                 );
             } catch (err) {
-                console.error('Error loading Embedded Messaging: ', err);
+                console.error('Error loading Embedded Messaging:', err);
+                fallbackToLegacyChat();
             }
         }
 
-        // Function to load MIAW script
+        // Function to load MIAW script with timeout
         function loadMIAWScript() {
-            const script = document.createElement('script');
-            script.type = 'text/javascript';
-            script.src = 'https://tricore--dev.sandbox.my.site.com/ESWAIChatBot1726132255017/assets/js/bootstrap.min.js';
-            script.onload = initEmbeddedMessaging;
-            document.body.appendChild(script);
+            try {
+                const script = document.createElement('script');
+                script.type = 'text/javascript';
+                script.src = 'https://tricore--dev.sandbox.my.site.com/ESWAIChatBot1726132255017/assets/js/bootstrap.min.js';
+                
+                const timeout = setTimeout(() => {
+                    if (!script.loaded) {
+                        fallbackToLegacyChat();
+                    }
+                }, 10000);
+
+                script.onload = () => {
+                    script.loaded = true;
+                    clearTimeout(timeout);
+                    initEmbeddedMessaging();
+                };
+
+                script.onerror = () => {
+                    clearTimeout(timeout);
+                    fallbackToLegacyChat();
+                };
+
+                document.body.appendChild(script);
+            } catch (error) {
+                console.error('Error in loadMIAWScript:', error);
+                fallbackToLegacyChat();
+            }
         }
 
         // Function to update UI based on setting
         function updateUI(enableMIAW) {
-            console.log('Updating UI, enableMIAW:', enableMIAW);
-            
-            const loginBtn = document.getElementById('loginBtn');
-            const legacyChat = document.getElementById('legacyChat');
-            const miawChat = document.getElementById('miawChat');
+            try {
+                console.log('Updating UI, enableMIAW:', enableMIAW);
+                
+                const loginBtn = document.getElementById('loginBtn');
+                const legacyChat = document.getElementById('legacyChat');
+                const miawChat = document.getElementById('miawChat');
 
-            // Hide login button
-            loginBtn.style.display = 'none';
+                loginBtn.style.display = 'none';
 
-            // Show appropriate chat button based on enableMIAW value
-            if (enableMIAW) {
-                miawChat.style.display = 'inline-block';
-                legacyChat.style.display = 'none';
-                console.log('Showing MIAW chat button');
-            } else {
-                legacyChat.style.display = 'inline-block';
-                miawChat.style.display = 'none';
-                console.log('Showing Legacy chat button');
+                if (enableMIAW) {
+                    miawChat.style.display = 'inline-block';
+                    legacyChat.style.display = 'none';
+                } else {
+                    legacyChat.style.display = 'inline-block';
+                    miawChat.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error updating UI:', error);
+                // Show legacy chat button as last resort
+                const legacyChat = document.getElementById('legacyChat');
+                const loginBtn = document.getElementById('loginBtn');
+                if (legacyChat && loginBtn) {
+                    loginBtn.style.display = 'none';
+                    legacyChat.style.display = 'inline-block';
+                }
             }
-        }
-
-        // Function to show error messages
-        function showError(message) {
-            const errorDiv = document.getElementById('error');
-            errorDiv.textContent = message;
-            console.error('Error:', message);
         }
 
         // Initialize event listeners
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize LiveAgent
-            initializeLiveAgent();
+            try {
+                // Initialize LiveAgent
+                initializeLiveAgent();
 
-            // Add click listener for login button
-            document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
+                // Add click listener for login button
+                document.getElementById('loginBtn').addEventListener('click', initializeOAuth);
 
-            // Add click listeners for chat buttons
-            document.getElementById('legacyChat').addEventListener('click', () => {
-                console.log('Legacy Chat clicked');
-                startLiveAgentChat();
-            });
+                // Add click listeners for chat buttons
+                document.getElementById('legacyChat').addEventListener('click', () => {
+                    console.log('Legacy Chat clicked');
+                    startLiveAgentChat();
+                });
 
-            document.getElementById('miawChat').addEventListener('click', () => {
-                console.log('MIAW Chat clicked');
-                loadMIAWScript();
-            });
+                document.getElementById('miawChat').addEventListener('click', () => {
+                    console.log('MIAW Chat clicked');
+                    loadMIAWScript();
+                });
 
-            // Check if we're returning from OAuth
-            if (window.location.hash) {
-                handleCallback();
+                // Check if we're returning from OAuth
+                if (window.location.hash) {
+                    handleCallback();
+                }
+
+                // Check for session tokens and fetch setting if they exist
+                if (sessionStorage.getItem('access_token') && sessionStorage.getItem('instance_url')) {
+                    fetchCustomSetting();
+                }
+            } catch (error) {
+                console.error('Error in initialization:', error);
+                fallbackToLegacyChat();
             }
         });
-
-        // Check for session tokens and fetch setting if they exist
-        if (sessionStorage.getItem('access_token') && sessionStorage.getItem('instance_url')) {
-            fetchCustomSetting();
-        }
     </script>
 </body>
 </html>
